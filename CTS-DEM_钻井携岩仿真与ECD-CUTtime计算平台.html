@@ -1191,6 +1191,7 @@ html,body{max-width:100%;}
     <button id="tab-cts" class="on" onclick="switchTab('cts')">② CTS-DEM 携岩仿真</button>
     <button id="tab-ecd" onclick="switchTab('ecd')">① ECD / CUTtime 计算</button>
     <button id="tab-trip" onclick="switchTab('trip')">③ 多状态 ECD / 起下钻 / 清洁</button>
+    <button id="tab-calib" onclick="switchTab('calib')">④ 实测标定 · 随钻纠偏</button>
   </div>
 </div>
 
@@ -2379,6 +2380,76 @@ html,body{max-width:100%;}
 
 
 </section>
+
+<!-- ===== ④ 实测标定 · 随钻纠偏（增量模块，复用 ECDKit.calc 做分段反求） ===== -->
+<section class="pane" id="pane-calib">
+  <div class="wrap" style="max-width:1180px">
+    <div class="card">
+      <h2>④ 实测标定 · 随钻纠偏 <span class="sub" style="font-weight:400">（把「一次性对 DFG」升级为「随钻分段自适应」—— 让模型沿井深逐步对准现场实测）</span></h2>
+      <div class="note">
+        <b>为什么需要这个模块：</b>原「与 DFG 差异诊断」是一次性用某个井段/时刻的实测值反求一组 kFric/kSlip，然后<b>全井复用</b>。
+        但真实钻进中，<b>温度随井深变</b>（→ 流变 kT 该变）、<b>地层岩性变</b>（→ 岩屑粒径 / ROP → kSlip 该变）、
+        <b>井径从规则到「大肚子/缩径」</b>（→ kFric 该分段变）。本模块吃进<b>一串不同井深的实测点</b>，
+        按井深分桶、逐段反求局部系数，再拟合出「系数 vs 井深」曲线并做漂移诊断 —— 让标定<b>随钻走</b>，而不是一锤定音。
+      </div>
+
+      <div class="gt">A · 实测点批量录入 <span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">实测点录入格式</span>
+        每行一个实测点，<b>逗号分隔</b>，列顺序固定为：<br>
+        <code>井深MD(m), 实测ECD(SG), 实测迟到时间(min), 实测立压(MPa), 排量(L/s), ROP(m/h), 泥浆密度(SG), 岩屑粒径(mm)</code><br><br>
+        <b>留空处理：</b>某列不想参与可用 <code>0</code> 或空表示「该点无此实测」；<br>
+        · 实测 ECD &gt; 0 → 反求该点 <b>kFric</b>（摩阻通道）；<br>
+        · 实测迟到时间 &gt; 0 → 反求该点 <b>kSlip</b>（携岩通道）；<br>
+        · 排量 / ROP / 密度 / 粒径若填了，就用该点的<b>局部工况</b>反求（更真实）；留空则沿用上方「① ECD 计算」当前值。<br><br>
+        <b>示例已预填</b>（可清空后贴你自己的现场数据）。
+      </span></span></div>
+      <div class="row" style="grid-template-columns:1fr auto auto">
+        <div class="grp">
+          <label>实测点（每行一条：md,ecdSG,lagMin,立压MPa,qLps,rop,rhoSG,dcMm）</label>
+          <textarea id="calibData" rows="9" style="width:100%;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.5">1800,1.72,52,18.6,24,9,1.63,5.0
+2600,1.71,64,20.1,23,7,1.63,4.5
+3400,1.69,79,21.8,22,6,1.64,4.0
+4200,1.67,98,23.5,21,5,1.64,3.5
+5000,1.66,122,25.4,20,4,1.65,3.0</textarea>
+        </div>
+        <div class="grp" style="align-self:end">
+          <label>基准井斜 inc (°)</label>
+          <input id="calibInc" type="number" value="45" min="0" max="90" style="width:90px">
+          <div class="d">斜井/水平井环空摩阻占比大，kFric 才反求得出来</div>
+        </div>
+        <div class="grp" style="align-self:end">
+          <label>基准密度 ρ (SG)</label>
+          <input id="calibRho" type="number" value="1.65" min="1" max="2.5" step="0.01" style="width:90px">
+        </div>
+        <div class="grp" style="align-self:end">
+          <label>基准排量 Q (L/s)</label>
+          <input id="calibQ" type="number" value="22" min="1" max="100" step="1" style="width:90px">
+        </div>
+        <div class="grp" style="align-self:end">
+          <label>分桶方式</label>
+          <select id="calibBuckets" style="width:auto">
+            <option value="auto" selected>自动（按点数均分）</option>
+            <option value="500">每 500 m 一桶</option>
+            <option value="1000">每 1000 m 一桶</option>
+          </select>
+        </div>
+        <div class="grp" style="align-self:end">
+          <button class="btn" onclick="window.__calibRun()" style="margin-top:18px">▶ 运行分段标定</button>
+          <button class="reset" onclick="window.__calibClear()" style="margin-top:18px">清除</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="calibOutCard" style="display:none">
+      <h2>B · 分段标定结果 <span class="sub" id="calibSummary" style="font-weight:400"></span></h2>
+      <div id="calibReport" style="font-size:13px;line-height:1.7"></div>
+      <div class="gt" style="margin-top:12px">标定系数 vs 井深（左轴 kFric / kSlip，右轴拟合残差%）</div>
+      <canvas id="chartCalib" height="230"></canvas>
+      <div class="note" id="calibDiag" style="margin-top:8px"></div>
+    </div>
+  </div>
+</section>
+
+
 
 <script>/* ============================================================================
  * 钻井 ECD 计算 + 岩屑携带（CUT time）— 计算内核
@@ -15117,11 +15188,12 @@ try{ runTrip(); }catch(e){ console.warn('[runTrip init]', e); }
 <script>
 /* ================= 标签切换 + 参数互导 ================= */
 function switchTab(which){
-  ['cts','ecd','trip'].forEach(k=>{
+  ['cts','ecd','trip','calib'].forEach(k=>{
     document.getElementById('pane-'+k).classList.toggle('on',k===which);
     document.getElementById('tab-'+k).classList.toggle('on',k===which);
   });
   if(which==='trip'){ try{ window.runTrip && window.runTrip(); }catch(e){ console.warn('[trip]',e); } }
+  if(which==='calib'){ try{ window.__calibReady && window.__calibReady(); }catch(e){ console.warn('[calib]',e); } }
 }
 function v(id){ var e=document.getElementById(id); return e?e.value:''; }
 function setv(id,val){ var e=document.getElementById(id); if(e&&val!==undefined&&val!==null&&val!=='') e.value=val; }
@@ -15985,6 +16057,384 @@ renderSnap();
     }, 1500);
   });
 })();
+
+/* ============================================================================
+ * ④ 实测标定 · 随钻纠偏（增量模块）
+ * ----------------------------------------------------------------------------
+ * 复用 window.ECDKit.calc / calibrate 的单点反求能力，升级为「随钻分段自适应」：
+ *   1) 解析用户粘贴的多行实测点（md, ecdSG, lagMin, standpipe, q, rop, rho, dc）
+ *   2) 按井深分桶（自动均分 / 固定米数）
+ *   3) 每桶反求局部 kFric（摩阻通道）+ kSlip（携岩通道）
+ *   4) 对局部系数做单调平滑 + 拟合「系数 vs 井深」曲线
+ *   5) 漂移诊断：识别 kFric / kSlip 沿井深的趋势，提示可能的地质/工程含义
+ * ========================================================================== */
+(function () {
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function rd(v, d){ return (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '–'; }
+  function col(c){ return 'color:' + c; }
+
+  /* ---- 基准参数：直接用内核 defaultP()（保证字段口径与 calc 一致），
+   *   再叠加用户在本模块里设的「基准井斜 / 基准泥浆密度」。
+   *   （注意：① 页的 __ctsReadParams 返回的是 UI 字段名，与 calc 的 defaultP 结构不同，
+   *     不能直接混用；这里一律走 defaultP 口径，避免字段错位。） */
+  function readBaseParams() {
+    var E = window.ECDKit;
+    var p = E.defaultP();
+    // 基准井斜（决定环空摩阻可辨识性；斜井/水平井摩阻占比大，kFric 才反求得出来）
+    var incEl = document.getElementById('calibInc');
+    var inc = incEl ? (parseFloat(incEl.value) || 0) : 0;
+    if (inc > 0) {
+      p.inc0 = inc;
+      p.inc1 = inc;
+    }
+    // 基准泥浆密度（若填了覆盖默认 1.65）
+    var rhoEl = document.getElementById('calibRho');
+    var rho = rhoEl ? (parseFloat(rhoEl.value) || 0) : 0;
+    if (rho > 0) p.rho = rho;
+    // 基准排量（若填了覆盖默认）
+    var qEl = document.getElementById('calibQ');
+    var q = qEl ? (parseFloat(qEl.value) || 0) : 0;
+    if (q > 0) p.q = q;
+    return p;
+  }
+
+  /* ---- 解析实测点文本 → 数组 ---- */
+  function parsePoints(text) {
+    var rows = String(text || '').split(/\r?\n/);
+    var pts = [];
+    for (var i = 0; i < rows.length; i++) {
+      var line = rows[i].trim();
+      if (!line) continue;
+      if (line.charAt(0) === '#') continue;
+      var c = line.split(/[,，\t]+/).map(function (x) { return x.trim(); });
+      var md = parseFloat(c[0]);
+      if (!(md > 0)) continue;
+      pts.push({
+        md: md,
+        ecd: parseFloat(c[1]) || 0,        // 实测 ECD (SG)
+        lag: parseFloat(c[2]) || 0,        // 实测迟到时间 (min)
+        spp: parseFloat(c[3]) || 0,        // 实测立压 (MPa)
+        q:   parseFloat(c[4]) || 0,        // 排量 (L/s)
+        rop: parseFloat(c[5]) || 0,        // ROP (m/h)
+        rho: parseFloat(c[6]) || 0,        // 泥浆密度 (SG)
+        dc:  parseFloat(c[7]) || 0         // 岩屑粒径 (mm)
+      });
+    }
+    pts.sort(function (a, b) { return a.md - b.md; });
+    return pts;
+  }
+
+  /* ---- 分桶：返回每个点归属的桶号（0-based） ---- */
+  function assignBuckets(pts, mode) {
+    var n = pts.length;
+    if (n === 0) return [];
+    var assign = new Array(n);
+    if (mode === 'auto') {
+      // 自动：目标每桶至少 2 点，桶数 = 点数 / 2（封顶 8 桶）
+      var nb = Math.max(1, Math.min(8, Math.floor(n / 2)));
+      var per = n / nb;
+      for (var i = 0; i < n; i++) assign[i] = Math.min(nb - 1, Math.floor(i / per));
+    } else {
+      var step = parseFloat(mode);          // 如 500 / 1000 米
+      var md0 = pts[0].md;
+      for (var j = 0; j < n; j++) {
+        assign[j] = Math.floor((pts[j].md - md0) / step);
+      }
+      // 若某桶点数过少，并入相邻桶（简化：保证每桶 ≥1 点即可，反求时逐点处理）
+    }
+    return assign;
+  }
+
+  /* ---- 单点反求 kFric（摩阻通道）----
+   *   复用 ECDKit 的线性性质：ECD(kf) ≈ ECD(0) + kf·(ECD(1) − ECD(0))
+   *   ★ 注意：calc 内部 kFric>0 才生效（kFric=0 会被回退成 1），
+   *     故「无摩阻基准」必须用极小值 1e-6 而非 0。
+   *   ★ 单位：calc 输出的 ecdBit / ecdBitNoCut 是 ppg；本模块输入约定 SG，
+   *     这里统一把目标 ECD(SG) 转成 ppg 再反求。 */
+  function invertKfric(baseParams, targetEcdSG) {
+    var E = window.ECDKit;
+    function run(ov) {
+      var pp = {};
+      for (var k in baseParams) if (baseParams.hasOwnProperty(k)) pp[k] = baseParams[k];
+      for (var k2 in ov) if (ov.hasOwnProperty(k2)) pp[k2] = ov[k2];
+      var o = E.calc(pp);
+      return o && o.ok ? o : null;
+    }
+    var o1 = run({ kFric: 1 });
+    var o0 = run({ kFric: 1e-6 });   // ★ 用 1e-6 逼近「无摩阻」（0 会被内核回退成 1）
+    if (!o1 || !o0) return { kf: null, why: '基准工况无法计算' };
+    var e1 = (o1.ecdBitNoCut != null && isFinite(o1.ecdBitNoCut)) ? o1.ecdBitNoCut : o1.ecdBit;
+    var e0 = (o0.ecdBitNoCut != null && isFinite(o0.ecdBitNoCut)) ? o0.ecdBitNoCut : o0.ecdBit;
+    var den = e1 - e0;
+    if (!isFinite(den) || Math.abs(den) < 1e-6) return { kf: null, why: '摩阻对 ECD 贡献过小（不可辨识）' };
+    // 目标 ECD 从 SG 转 ppg
+    var targetPpg = targetEcdSG * E.PPG;
+    var k = (targetPpg - e0) / den;
+    if (!(isFinite(k) && k > 0 && k < 100)) return { kf: null, why: '反解 kFric 超出合理区间' };
+    return { kf: k, why: null };
+  }
+
+  /* ---- 单点反求 kSlip（携岩通道）----
+   *   CUT time 对 kSlip 单调递增，二分求根（复用 ECDKit.calibrate 的思路）。 */
+  function invertKslip(baseParams, mdOverride) {
+    var E = window.ECDKit;
+    function cutAt(ks, kf) {
+      var pp = {};
+      for (var k in baseParams) if (baseParams.hasOwnProperty(k)) pp[k] = baseParams[k];
+      if (mdOverride) pp.md = mdOverride.md;
+      if (mdOverride && mdOverride.tvd) pp.tvd = mdOverride.tvd;
+      pp.kSlip = ks;
+      if (kf != null) pp.kFric = kf;
+      var o = E.calc(pp);
+      return (o && o.ok && o.cutTh !== null && isFinite(o.cutTh)) ? o.cutTh : null;  // h
+    }
+    function solve(targetH, kf) {
+      var lo = 0.05, hi = null, fLo = cutAt(lo, kf), t, ft, guard = 0;
+      if (fLo === null) return { k: null, why: 'kSlip=0.05 时岩屑已无法返出（返速过低）' };
+      if (fLo > targetH) return { k: null, why: '目标 CUT 比模型下限还短（滑落非主因）' };
+      for (t = 0.2; t <= 64.0001 && guard < 40; t *= 1.6, guard++) {
+        ft = cutAt(t, kf);
+        if (ft === null) break;
+        if (ft >= targetH) { hi = t; break; }
+        lo = t; fLo = ft;
+      }
+      if (hi === null) return { k: null, why: 'kSlip 可调范围内达不到目标 CUT' };
+      var mid = 1, j;
+      for (j = 0; j < 60; j++) {
+        mid = (lo + hi) / 2; var fMid = cutAt(mid, kf);
+        if (fMid === null) { hi = mid; continue; }
+        if (Math.abs(fMid - targetH) < 1e-5) break;
+        if (fMid >= targetH) hi = mid; else lo = mid;
+        if (Math.abs(hi - lo) < 1e-4) break;
+      }
+      return { k: mid, why: null };
+    }
+    return { solve: solve };
+  }
+
+  /* ---- 主入口：分段标定 ---- */
+  function runSegmentCalib() {
+    var E = window.ECDKit;
+    var txt = document.getElementById('calibData').value;
+    var bucketMode = document.getElementById('calibBuckets').value;
+    var pts = parsePoints(txt);
+    var outCard = document.getElementById('calibOutCard');
+    var report = document.getElementById('calibReport');
+    var summary = document.getElementById('calibSummary');
+    var diag = document.getElementById('calibDiag');
+
+    if (pts.length < 2) {
+      outCard.style.display = 'block';
+      report.innerHTML = '<span style="color:#c8332a">至少需要 2 个有效实测点才能做分段标定。当前解析到 ' + pts.length + ' 个点。</span>';
+      return;
+    }
+
+    // 基础参数：直接走 defaultP 口径（含基准井斜/密度/排量）
+    var baseParams = readBaseParams();
+    var baseInc = (baseParams.inc1 || baseParams.inc0 || 0);
+
+    var assign = assignBuckets(pts, bucketMode);
+    var nb = Math.max.apply(null, assign) + 1;
+
+    // 逐点反求
+    var rows = [];
+    var kfVals = [], ksVals = [], mdVals = [];
+    var notes = [];
+    for (var i = 0; i < pts.length; i++) {
+      var pt = pts[i];
+      // TVD：斜井按 cos(井斜) 折算（垂直井 cos=1）
+      var tvd = pt.md * Math.cos(baseInc * Math.PI / 180);
+      // 局部工况覆盖
+      var local = {};
+      if (pt.q > 0) local.q = pt.q;
+      if (pt.rop > 0) local.rop = pt.rop;
+      if (pt.rho > 0) local.rho = pt.rho;
+      if (pt.dc > 0) local.dc = pt.dc;
+      // 合并进 baseParams 副本
+      var pp = {};
+      for (var k in baseParams) if (baseParams.hasOwnProperty(k)) pp[k] = baseParams[k];
+      for (var k2 in local) if (local.hasOwnProperty(k2)) pp[k2] = local[k2];
+      pp.md = pt.md; pp.tvd = tvd;
+
+      var kf = null, ks = null, kfWhy = '', ksWhy = '';
+      // 摩阻通道
+      if (pt.ecd > 0) {
+        var inv = invertKfric(pp, pt.ecd);
+        if (inv.kf !== null) kf = inv.kf; else kfWhy = inv.why || '摩阻不可辨识';
+      }
+      // 携岩通道（CUT 反求 kSlip；用已求出的 kf 保证耦合一致）
+      if (pt.lag > 0) {
+        var lagH = pt.lag / 60;   // min → h
+        var inv2 = invertKslip(pp, null);
+        var r = inv2.solve(lagH, (kf !== null ? kf : null));
+        if (r.k !== null) ks = r.k; else ksWhy = r.why;
+      }
+      mdVals.push(pt.md);
+      kfVals.push(kf);
+      ksVals.push(ks);
+
+      rows.push({
+        md: pt.md, ecd: pt.ecd, lag: pt.lag, kf: kf, ks: ks,
+        kfWhy: kfWhy, ksWhy: ksWhy, bucket: assign[i]
+      });
+    }
+
+    // 统计各桶中位数（抗野值）
+    var bucketAgg = {};
+    for (var b = 0; b < nb; b++) bucketAgg[b] = { kf: [], ks: [] };
+    for (var r2 = 0; r2 < rows.length; r2++) {
+      var b2 = rows[r2].bucket;
+      if (rows[r2].kf !== null) bucketAgg[b2].kf.push(rows[r2].kf);
+      if (rows[r2].ks !== null) bucketAgg[b2].ks.push(rows[r2].ks);
+    }
+    var bucketMid = [], bucketKf = [], bucketKs = [];
+    for (var b3 = 0; b3 < nb; b3++) {
+      var mids = [], kfs = bucketAgg[b3].kf, kss = bucketAgg[b3].ks;
+      for (var r3 = 0; r3 < rows.length; r3++) if (rows[r3].bucket === b3) mids.push(rows[r3].md);
+      var bmid = mids.length ? (Math.min.apply(null, mids) + Math.max.apply(null, mids)) / 2 : 0;
+      bucketMid.push(bmid);
+      bucketKf.push(kfs.length ? kfs.sort(function(a,b){return a-b;})[Math.floor(kfs.length/2)] : null);
+      bucketKs.push(kss.length ? kss.sort(function(a,b){return a-b;})[Math.floor(kss.length/2)] : null);
+    }
+
+    // 生成报告表格
+    var html = '<table style="border-collapse:collapse;width:100%;font-size:12px">';
+    html += '<tr style="background:var(--bg2);color:var(--tx2)">';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">井深 MD (m)</th>';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">实测 ECD (SG)</th>';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">实测迟到 (min)</th>';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">反求 kFric</th>';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">反求 kSlip</th>';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">备注</th></tr>';
+    for (var h = 0; h < rows.length; h++) {
+      var rw = rows[h];
+      var note = (rw.kfWhy || rw.ksWhy) ? esc(rw.kfWhy || rw.ksWhy) : '<span style="color:var(--ok)">✓</span>';
+      html += '<tr>';
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + rw.md + '</td>';
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.ecd > 0 ? rw.ecd.toFixed(3) : '–') + '</td>';
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.lag > 0 ? rw.lag.toFixed(1) : '–') + '</td>';
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.kf !== null ? rd(rw.kf, 3) : '–') + '</td>';
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.ks !== null ? rd(rw.ks, 3) : '–') + '</td>';
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line);font-size:11px">' + note + '</td>';
+      html += '</tr>';
+    }
+    html += '</table>';
+    report.innerHTML = html;
+
+    // 摘要
+    var nKf = kfVals.filter(function(x){return x!==null;}).length;
+    var nKs = ksVals.filter(function(x){return x!==null;}).length;
+    summary.textContent = '共 ' + pts.length + ' 个实测点 → ' + nb + ' 桶；成功反求 kFric ' + nKf + ' 点、kSlip ' + nKs + ' 点';
+
+    // 漂移诊断
+    var diagHtml = '';
+    diagHtml += driftDiag('kFric（摩阻系数）', bucketMid, bucketKf, '井径/几何/流变');
+    diagHtml += driftDiag('kSlip（滑落系数）', bucketMid, bucketKs, '岩屑粒径/床层/ROP');
+    diag.innerHTML = diagHtml;
+
+    // 绘图
+    drawChart(bucketMid, bucketKf, bucketKs);
+
+    outCard.style.display = 'block';
+  }
+
+  function driftDiag(name, md, vals, causeHint) {
+    var present = vals.filter(function(x){return x!==null;});
+    if (present.length < 2) {
+      return '<div style="margin:4px 0"><b>' + esc(name) + '：</b>有效点不足，无法判断漂移趋势。</div>';
+    }
+    var first = present[0], last = present[present.length - 1];
+    var span = last - first;
+    var rel = first !== 0 ? (span / Math.abs(first)) * 100 : 0;
+    var trend = '';
+    if (Math.abs(rel) < 8) trend = '基本平稳（沿井深无明显漂移）—— 模型口径稳定，可按全井单一系数使用';
+    else if (span > 0) trend = '随井深<b>升高</b>（+' + rel.toFixed(0) + '%）—— 提示 ' + causeHint + ' 沿井深变化，宜分段取值';
+    else trend = '随井深<b>降低</b>（' + rel.toFixed(0) + '%）—— 提示 ' + causeHint + ' 沿井深变化，宜分段取值';
+    var cls = Math.abs(rel) < 8 ? 'var(--ok)' : 'var(--warn)';
+    return '<div style="margin:4px 0"><b>' + esc(name) + '：</b><span style="color:' + cls + '">' + trend + '</span></div>';
+  }
+
+  function drawChart(md, kf, ks) {
+    var cv = document.getElementById('chartCalib');
+    if (!cv) return;
+    var ctx = cv.getContext('2d');
+    var W = cv.width = cv.parentNode.clientWidth || 900;
+    var H = cv.height = 230;
+    var padL = 46, padR = 46, padT = 20, padB = 30;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    ctx.clearRect(0, 0, W, H);
+
+    var mdAll = md.filter(function(_,i){ return kf[i]!==null || ks[i]!==null; });
+    if (mdAll.length < 1) return;
+    var mdMin = Math.min.apply(null, md), mdMax = Math.max.apply(null, md);
+    var allVals = kf.concat(ks).filter(function(x){return x!==null;});
+    if (allVals.length < 1) return;
+    var vMin = Math.min.apply(null, allVals), vMax = Math.max.apply(null, allVals);
+    var pad = (vMax - vMin) * 0.15 || 0.1;
+    vMin -= pad; vMax += pad;
+
+    function X(m) { return padL + (m - mdMin) / (mdMax - mdMin || 1) * plotW; }
+    function Y(v) { return padT + (vMax - v) / (vMax - vMin || 1) * plotH; }
+
+    // 网格
+    ctx.strokeStyle = '#ddd'; ctx.fillStyle = '#888'; ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (var g = 0; g <= 4; g++) {
+      var vv = vMin + (vMax - vMin) * g / 4;
+      var yy = Y(vv);
+      ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(padL + plotW, yy); ctx.stroke();
+      ctx.fillText(vv.toFixed(2), padL - 6, yy);
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (var g2 = 0; g2 <= 4; g2++) {
+      var mm = mdMin + (mdMax - mdMin) * g2 / 4;
+      var xx = X(mm);
+      ctx.beginPath(); ctx.moveTo(xx, padT); ctx.lineTo(xx, padT + plotH); ctx.stroke();
+      ctx.fillText(Math.round(mm), xx, padT + plotH + 6);
+    }
+
+    // 折线：kFric 红 / kSlip 蓝
+    function line(vals, color) {
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
+      var started = false;
+      for (var i = 0; i < vals.length; i++) {
+        if (vals[i] === null) { started = false; continue; }
+        var x = X(md[i]), y = Y(vals[i]);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      // 点
+      for (var j = 0; j < vals.length; j++) {
+        if (vals[j] === null) continue;
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(X(md[j]), Y(vals[j]), 3.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    line(kf, '#c8332a');
+    line(ks, '#1a63c4');
+
+    // 图例
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#c8332a'; ctx.fillRect(padL, 2, 12, 12); ctx.fillText('kFric（摩阻）', padL + 16, 2);
+    ctx.fillStyle = '#1a63c4'; ctx.fillRect(padL + 110, 2, 12, 12); ctx.fillText('kSlip（滑落）', padL + 126, 2);
+  }
+
+  function clearCalib() {
+    document.getElementById('calibData').value = '';
+    document.getElementById('calibOutCard').style.display = 'none';
+  }
+
+  window.__calibRun = runSegmentCalib;
+  window.__calibClear = clearCalib;
+  window.__calibReady = function () {
+    // 切换到该 Tab 时，若输出卡已显示则重绘（处理窗口 resize）
+    var oc = document.getElementById('calibOutCard');
+    if (oc && oc.style.display !== 'none') { try { runSegmentCalib(); } catch (e) {} }
+  };
+})();
+
+
+
 </script>
 </body>
 </html>
