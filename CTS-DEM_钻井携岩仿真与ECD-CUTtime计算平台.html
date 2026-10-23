@@ -10804,7 +10804,7 @@ function runCalc(fromUser){
   const angOn=(angOnEl?angOnEl.value:'1')==='1';
   const cconcMaxV=val('cconcMax')||5;
   const DF_IN={ t600,t300,t200,t100,t6:val('t6'),t3:val('t3'), cconcMax:cconcMaxV, angOn:angOn };
-  let cutT, cutT_old, cutT_dfem=0, cutT_ns=0, cutT_nsl=0, cutT_cfd=0;
+  let cutT, cutT_old, cutT_dfem=0, cutT_ns=0, cutT_nsl=0, cutT_nslb=0, cutT_cfd=0;
   let hSum=0, hCnt=0, lockLen=0, totLen=0;   /* 床高/窄缝锁死统计 */
   /* ★ 物理下限审计：泥浆自身返速、环空几何 */
   let lagS=0, gapS=0, gapL=0, gapMin=1e9, gapMinMd=0, gapMinOd=0, gapMinDh=0, nClamp=0;
@@ -10864,18 +10864,38 @@ function runCalc(fromUser){
       }));
       const vpDFEM=Math.max(0.02, Math.min(VannSeg, dfr.vp_mps));
       const vpNS  =Math.max(0.02, Math.min(VannSeg, (Q/A0) - dfr.VSLIP_mps));   // 备用口径：环空平均返速 − 滑移速度
-      /* ★ 引擎C：N-S 低边耦合（★本次新增）
-         链条：同心 N-S 数值解 → Φ → 同一 Φ 下低边窄缝 (h_low=(1−e)h) 的 H-B 解析流速 uLow
-               → V_low = lowRatio·V_eff（岩屑实际所在低边的局部流速）
-               → v_p = TR(θ, V_low, e) · V_low（用低边局部流速查标定表 → 自洽，不重复计偏心） */
+      /* ★ 引擎C：N-S 低边耦合（★ 2026-10-23 修正：两层加权，替代"全井低边速度"）
+         ── 原实现的問題 ──
+         原式 v_p = TR(θ,V_low,e)·V_low 把「低边窄缝流速」当作**全井所有岩屑**的代表速度，
+         等价于假设 100% 岩屑始终待在低边窄缝里。层流段 lowRatio 被 (1−e_eff) 压到 0.05 下限，
+         于是 v_p ≈ 0.7 × 0.05 × V_eff ≈ 3.6% V_eff，Cut Time 达到泥浆上返时间的 20~30 倍
+         （实测 1879 min vs t_lag 73.4 min）—— 那是「最慢子群跑完全井」的理论边界，
+         不是循环周期，却被当作主引擎 KPI 展示，物理上不成立。
+         ── 修正后的模型（井眼清洁标准两层法）──
+         环空按「床层（低边）+ 悬浮层（主流）」两层加权：
+           · 床层面积份额 f_bed = h*（与 ② 步面积折减 A_eff=A0(1−h*) 同口径）
+             速度 v_bed = TR(θ,V_low,0)·V_low  ← N-S 低边口径，且**不再二次折减偏心**
+             （V_low 已由 (1−e_eff) 缩放得到，trAt 内再乘 (1−0.10e) 属重复计偏心）
+           · 悬浮层份额 (1−f_bed)，速度 v_susp = TR(θ,V_eff,e)·V_eff（与引擎A同口径）
+           · 岩屑平均轴向速度 v_p = f_bed·v_bed + (1−f_bed)·v_susp
+         纯低边边界（f_bed=1）另存 cutT_nslb 作诊断，不再进主结果。 */
       const nq=nsSegAt(mdMid);
-      let lowRatio=1, vpNSL=vpNS, slitLocked=false;
+      let lowRatio=1, vpNSL=vpNS, slitLocked=false, vpBound=vpNS;
       if(nq&&nq.r){
         lowRatio=Math.max(0,Math.min(1.2,nq.r.lowRatio));
         slitLocked=!!nq.r.slitLocked;
         const Vlow=Math.max(0.05*Veff, lowRatio*Veff);
-        const TRlow=CFDTR.trAt(incD,Vlow,eEff,DhL*1000);
-        vpNSL=Math.max(0.02, Math.min(VannSeg, TRlow*Vlow));
+        /* 床层面积份额（低边滞留子群占比）—— 用该段平衡床高比 h* */
+        const fBed=Math.max(0,Math.min(0.95,hStar));
+        /* 低边子群速度：V_low 已含偏心，故 trAt 传 ecc=0 避免二次折减 */
+        const TRlow=CFDTR.trAt(incD,Vlow,0,DhL*1000);
+        const vBed=Math.max(0.02, Math.min(VannSeg, TRlow*Vlow));
+        /* 悬浮子群速度（与 CFD-DEM 引擎同口径，封顶该段环空返速） */
+        const vSusp=Math.max(0.02, Math.min(VannSeg, TRv*Veff));
+        /* 两层（颗粒数）加权 → 岩屑平均轴向速度 */
+        vpNSL=Math.max(0.02, Math.min(VannSeg, fBed*vBed+(1-fBed)*vSusp));
+        /* 纯低边边界（f_bed→1，即"全部岩屑都在低边窄缝"的极限）—— 仅诊断用 */
+        vpBound=vBed;
       } else { lowRatio=Math.max(0,Math.min(1.2,(1-eEff))); }
       if(slitLocked) lockLen+=ds;
       const vp=(vpEngine==='dfem')?vpDFEM:((vpEngine==='ns')?vpNS:((vpEngine==='nsl')?vpNSL:vpCFD));  // 主引擎
@@ -10883,6 +10903,7 @@ function runCalc(fromUser){
       cutT_dfem+=ds/vpDFEM;
       cutT_ns+=ds/vpNS;
       cutT_nsl+=ds/vpNSL;
+      cutT_nslb+=ds/vpBound;   /* 纯低边边界（f_bed→1 的极限，仅诊断用） */
       cutT_cfd+=ds/vpCFD;
       // --- 旧：自由沉降法（保留作对照，用几何平均返速，不含床层折减） ---
       const Vgeo=Q/A0;
@@ -10895,9 +10916,9 @@ function runCalc(fromUser){
       dfemRows.push({md:mdMid,inc:incD,raw:dfr});
       if(i%6===0||i===tr.MD.length-1) dfemSegs.push({md:mdMid,inc:incD,raw:dfr,vp:vpDFEM});
     }
-    cutT/=60; cutT_old/=60; cutT_dfem/=60; cutT_ns/=60; cutT_nsl/=60; cutT_cfd/=60;    // s -> min
+    cutT/=60; cutT_old/=60; cutT_dfem/=60; cutT_ns/=60; cutT_nsl/=60; cutT_nslb/=60; cutT_cfd/=60;    // s -> min
   } else {
-    cutT=cutT_old=cutT_dfem=cutT_ns=cutT_nsl=cutT_cfd=Vtot/Q/60;   // 直井退化
+    cutT=cutT_old=cutT_dfem=cutT_ns=cutT_nsl=cutT_nslb=cutT_cfd=Vtot/Q/60;   // 直井退化
     lagS=Vtot/Q;
   }
   const lagMin=lagS/60;
@@ -10910,6 +10931,7 @@ function runCalc(fromUser){
   const lockPct=(totLen>0)?100*lockLen/totLen:0;  /* 低边窄缝被屈服锁死的井段占比 */
   CFD_CUT.cutT=cutT_cfd; CFD_CUT.cutT_old=cutT_old; CFD_CUT.dfem.cutT=cutT_dfem;
   CFD_CUT.ns=cutT_ns; CFD_CUT.nsl=cutT_nsl; CFD_CUT.cfd=cutT_cfd;
+  CFD_CUT.nslb=cutT_nslb;                     /* 纯低边边界（诊断用） */
   CFD_CUT.main=cutT; CFD_CUT.hAvg=hAvg; CFD_CUT.lockPct=lockPct;
   CFD_CUT.lag=lagMin; CFD_CUT.gapAvg=gapAvgMM; CFD_CUT.gapMin=gapMin;
   CFD_CUT.gapMinMd=(gapMin<1e8?gapMinMd:null); CFD_CUT.nClamp=nClamp; CFD_CUT.cutFloorOk=cutFloorOk;
@@ -11063,7 +11085,7 @@ function runCalc(fromUser){
     `<b>结论：</b>井底 ECD ≈ <b>${Elam.toFixed(3)}~${Eturb.toFixed(3)} SG</b>（层流 ${Elam.toFixed(3)} ／ 紊流 ${Eturb.toFixed(3)}，推荐 <b>${Erec.toFixed(3)}</b>）；`+
     `含岩屑（三项）${Ec_lam.toFixed(4)}～${Ec_turb.toFixed(4)} SG；`+
     `Cut time ≈ <b>${cutT.toFixed(1)} min</b>（${(vpEngine==='nsl')?'★N-S 低边耦合':(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S 平均':'CFD-DEM'))}口径`+
-    `；对照 CFD-DEM ${cutT_cfd.toFixed(1)}／★N-S低边 ${cutT_nsl.toFixed(1)}／DFEM ${cutT_dfem.toFixed(1)}／N-S平均 ${cutT_ns.toFixed(1)}／旧自由沉降 ${cutT_old.toFixed(1)} min）。${lagTxt}<br>${ptTxt}`+
+    `；对照 CFD-DEM ${cutT_cfd.toFixed(1)}／★N-S低边(两层加权) ${cutT_nsl.toFixed(1)}／N-S纯低边边界 ${cutT_nslb.toFixed(1)}／DFEM ${cutT_dfem.toFixed(1)}／N-S平均 ${cutT_ns.toFixed(1)}／旧自由沉降 ${cutT_old.toFixed(1)} min）。${lagTxt}<br>${ptTxt}`+
     `<br><span style="color:var(--sub)">水力学口径：紊流摩阻 Dodge–Metzner（f=4a/Re<sup>b</sup>，a=(lg n+3.93)/50，b=(1.75−lg n)/7；n=1 退化 Blasius）；流变与密度按<b>逐段垂深温度 T(z)=T<sub>s</sub>+grad·TVD</b> 与 ρ(z) 温压剖面修正（HTHP 手册口径）。</span>`;
 
   // ---- 岩屑床启动 / 井眼净化判据 ----
@@ -11215,7 +11237,8 @@ function runCalc(fromUser){
       `<tr><th>指标</th><th>数值</th><th>说明</th></tr>
        <tr><td>当前主引擎 Cut Time（${(vpEngine==='dfem')?'DFEM':((vpEngine==='ns')?'N-S平均':((vpEngine==='nsl')?'N-S低边耦合':'CFD-DEM'))}）</td><td><b style="color:var(--ok)">${cutT.toFixed(1)} min</b></td><td>下方各口径对照，主引擎由"Cut Time 采用引擎"下拉决定</td></tr>
        <tr><td>CFD-DEM 重矫正 Cut Time</td><td>${cutT_cfd.toFixed(1)} min</td><td>以 TR(θ,V_loc) 计 v_p=TR·V_loc 逐段积分</td></tr>
-       <tr><td>★ N-S 低边耦合 Cut Time</td><td><b style="color:var(--accent)">${cutT_nsl.toFixed(1)} min</b></td><td>v_p=TR(θ,V_low,e)·V_low，V_low=lowRatio·V_eff（偏心窄缝 H-B 局部流速，同一 Φ 解）</td></tr>
+       <tr><td>★ N-S 低边耦合 Cut Time</td><td><b style="color:var(--accent)">${cutT_nsl.toFixed(1)} min</b></td><td><b>两层加权</b>：v_p = f<sub>bed</sub>·TR(θ,V<sub>low</sub>)·V<sub>low</sub> + (1−f<sub>bed</sub>)·TR(θ,V<sub>eff</sub>)·V<sub>eff</sub>，其中 f<sub>bed</sub>=h* 为该段床层面积份额、V<sub>low</sub>=lowRatio·V<sub>eff</sub>（偏心窄缝 H-B 局部流速，同一 Φ 解）</td></tr>
+       <tr><td>N-S 纯低边边界（诊断）</td><td style="color:var(--sub)">${cutT_nslb.toFixed(1)} min</td><td>假设 100% 岩屑全程都在低边窄缝（f<sub>bed</sub>=1）的<b>理论极限</b>，仅用于评估最坏子群，<b>不是循环周期</b>。若此值远大于 t<sub>lag</sub>，说明低边窄缝确有严重滞流，但岩屑大部分仍在主流中输送</td></tr>
        <tr><td>DFEM 口径 Cut Time</td><td>${cutT_dfem.toFixed(1)} min</td><td>v_p=V_ANN−V_SLIP</td></tr>
        <tr><td colspan="3" style="text-align:left;background:#eef2f7"><b>★ 物理下限校验（Cut Time 不可能快于泥浆）</b></td></tr>
        <tr><td><b>泥浆上返时间 t<sub>lag</sub></b></td><td><b>${lagMin.toFixed(1)} min</b></td>
@@ -11300,7 +11323,8 @@ function runCalc(fromUser){
       `<tr><td><b>Cut Time · 当前主引擎</b></td><td><b style="color:var(--accent2)">${cutT.toFixed(1)} min</b></td>
         <td>${isDfem?'v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（DFEM Walker &amp; Mayes）':(vpEngine==='nsl'?'v_p = TR(θ,V<sub>low</sub>)·V<sub>low</sub>（★N-S 低边耦合）':(vpEngine==='ns'?'v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（N-S 平均）':'v_p = TR · V<sub>loc</sub>（CFD-DEM 运移比）'))}</td></tr>
        <tr><td>Cut Time · CFD-DEM 口径</td><td>${cutT_cfd.toFixed(1)} min</td><td>v_p = TR·V<sub>loc</sub>（平均颗粒）</td></tr>
-       <tr><td>Cut Time · ★N-S 低边耦合口径</td><td>${cutT_nsl.toFixed(1)} min</td><td>v_p = TR(θ,V<sub>low</sub>)·V<sub>low</sub>（低边滞留子群 · 最慢）</td></tr>
+       <tr><td>Cut Time · ★N-S 低边耦合口径</td><td>${cutT_nsl.toFixed(1)} min</td><td>两层加权：v_p = f<sub>bed</sub>·TR(θ,V<sub>low</sub>)·V<sub>low</sub> + (1−f<sub>bed</sub>)·TR(θ,V<sub>eff</sub>)·V<sub>eff</sub>，f<sub>bed</sub>=h*（床层面积份额）</td></tr>
+       <tr><td>Cut Time · N-S 纯低边边界（诊断）</td><td style="color:var(--sub)">${cutT_nslb.toFixed(1)} min</td><td>f<sub>bed</sub>=1 的理论极限（全部岩屑都在低边窄缝），仅评估最坏子群，<b>不是循环周期</b></td></tr>
        <tr><td>Cut Time · DFEM 口径</td><td>${cutT_dfem.toFixed(1)} min</td><td>v_p = V<sub>ANN</sub> − V<sub>SLIP</sub></td></tr>
        <tr><td>Cut Time · N-S 平均口径</td><td>${cutT_ns.toFixed(1)} min</td><td>v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（N-S 版）</td></tr>
        <tr><td>Cut Time · 旧自由沉降口径</td><td>${cutT_old.toFixed(1)} min</td><td>v_ax = V − v<sub>s</sub>·sinθ</td></tr>
