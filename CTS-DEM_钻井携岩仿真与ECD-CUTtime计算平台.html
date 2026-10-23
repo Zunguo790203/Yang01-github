@@ -10,6 +10,18 @@
   --bg:#f6f8fa; --panel:#ffffff; --line:#d8e0e9; --txt:#1f2933; --dim:#5c6b7a;
   --accent:#c8332a; --accent2:#8a5d00; --ok:#1a7f37; --blue:#1a63c4;
   --soft:#eef3f9;
+  /* ===== ① ECD / CUTtime 面板设计令牌 =====
+     ① 页样式表（#pane-ecd）大量引用下面这批变量，若缺失会令 background/color
+     落到「无效声明」→ 卡片无底色、主按钮「白字+透明底」看不见。按浅色护眼主题补齐。 */
+  --bg2:#ffffff; --bg3:#f7f9fb; --bd:#d8e0e9; --bd3:#e8eef4; --line2:#b9c6d3;
+  --tx:#1f2933; --tx2:#3b4854; --tx3:#6b7784;
+  --ac:#0f8b7e; --ac2:#0a5f56; --ac3:#e2f1ef;
+  --in:#1a63c4; --in3:#e3edfb; --wn:#8a5d00; --wn3:#fdf3d6; --ok3:#e4f4e8;
+  --warn:#b58105; --bad:#c8332a; --tx1:#1f2933;
+  --r:8px; --r2:10px;
+  --mono:"Consolas","Cascadia Mono","Courier New",monospace;
+  --sans:"Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+  --panel2:#ffffff; --sub:#5c6b7a; --chip:#eef3f9;
 }
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--txt);
