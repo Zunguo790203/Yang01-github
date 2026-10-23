@@ -4214,37 +4214,71 @@ html,body{max-width:100%;}
       before: { ecd: o0.ecdBit, ecdNoCut: o0.ecdBitNoCut, cutT: o0.cutTh, vf: o0.vf * 100, eff: o0.eff * 100 },
       notes: notes
     };
-    /* ---- ① 摩阻通道 ---- */
+    /* ---- ① 摩阻通道 ----
+     * ★ 反求基准必须是「kFric = 1 的单位摩阻工况」，不能用当前界面状态：
+     *   线性模型 ECD(kFric) = e0 + kFric·(e1 − e0) 只在 e1 取自 kFric=1 时成立。
+     *   曾误把当前状态 o0 当基准 ⇒ 界面里 kFric≠1 时（如④标定写回后），
+     *   反求值被系统性乘/除该倍数（kFric=1.739 时反求值偏小 1.739 倍）。
+     * ★ ECD–kFric 并非严格线性（偏心/流态切换/φ 迭代耦合），一次插值后做
+     *   secant 迭代修正，判据 |ECD − 目标| < 0.005 ppg（≈0.0006 g/cm³）。
+     * ★ 携岩通道定出的 kSlip 也会经 φ 迭代轻微影响 clean ECD，故本通道做成
+     *   可重入的 solveFric(kSlipLock)，在② 之后用最终 kSlip 锁定再解一次。 */
     var tgtEcd = num(ref.ecd), tgtClean = num(ref.ecdClean);
-    if (tgtEcd > 0 || tgtClean > 0) {
-      var oNo = run({ kFric: 0 });            // kFric = 0 ⇒ 无摩阻（但程序里 kFric>0 才生效，故用极小值）
-      var oNo2 = run({ kFric: 1e-6 });
+    var fricOn = (tgtEcd > 0 || tgtClean > 0);
+    var fricKey = (tgtClean > 0) ? 'ecdBitNoCut' : 'ecdBit';
+    var fricTgt = (tgtClean > 0) ? tgtClean : tgtEcd;
+    function solveFric(kSlipLock) {
+      function ov(o) { if (kSlipLock !== undefined && kSlipLock !== null) o.kSlip = kSlipLock; return o; }
+      var oNo = run(ov({ kFric: 0 }));            // kFric = 0 ⇒ 无摩阻（程序里 kFric>0 才生效，故用极小值）
+      var oNo2 = run(ov({ kFric: 1e-6 }));
       var use = oNo2.ok ? oNo2 : oNo;
-      if (use && use.ok) {
-        var key = (tgtClean > 0) ? 'ecdBitNoCut' : 'ecdBit';
-        var target = (tgtClean > 0) ? tgtClean : tgtEcd;
-        var e0 = use[key], e1 = o0[key];
-        var den = e1 - e0;
-        if (isFinite(e0) && isFinite(e1) && Math.abs(den) > 1e-4) {
-          var kf = (target - e0) / den;
-          if (isFinite(kf) && kf > 0 && kf < 100) {
-            res.kFric = kf;
-            if (kf < 0.15 || kf > 6) {
-              notes.push('反求的 kFric = ' + r(kf, 3) + ' 偏离 1 很远（>6× 或 <0.15×）。'
-                + '这通常意味着偏差的主因不在「摩阻倍数」，而在几何（井径/钻具外径）、'
-                + 'TVD 口径、或流变参数本身 —— 请先核对这几项再用校准值。');
-            }
-            notes.push('摩阻通道：用 DFG 的' + (tgtClean > 0 ? '「无岩屑 ECD（Clean）」' : '「ECD with cuttings」')
-              + '反求 kFric = ' + r(kf, 4) + '（基准 ' + r(e1, 3) + ' ppg = ' + r(e1 / PPG, 4) + ' g/cm³，无摩阻 ' + r(e0, 3) + ' ppg = ' + r(e0 / PPG, 4) + ' g/cm³）。');
-          } else {
-            notes.push('摩阻通道无法反求（解出 kFric = ' + r(kf, 3) + ' 不落在合理区间）。');
-          }
-        } else {
-          notes.push('摩阻通道无法反求：摩阻对 ECD 的贡献过小（不可辨识）。');
+      var oU1 = run(ov({ kFric: 1 }));            // ★ 单位摩阻基准（与④ 标定 invertKfric 同口径）
+      var uBase = (oU1 && oU1.ok) ? oU1 : o0;
+      if (!use || !use.ok) return { none: 'nocalc' };
+      var e0 = use[fricKey], e1 = uBase[fricKey];
+      var den = e1 - e0;
+      if (!isFinite(e0) || !isFinite(e1) || Math.abs(den) < 1e-4) return { none: 'small' };
+      var kf = (fricTgt - e0) / den;
+      var itF = 0;
+      if (isFinite(kf) && kf > 0 && kf < 100) {
+        for (itF = 0; itF < 6; itF++) {
+          var oi = run(ov({ kFric: kf }));
+          if (!oi || !oi.ok || oi[fricKey] === null || !isFinite(oi[fricKey])) break;
+          var ei = oi[fricKey];
+          if (Math.abs(ei - fricTgt) < 0.005) break;
+          var d2 = ei - e0;
+          if (Math.abs(d2) < 1e-6) break;
+          var kf2 = kf * (fricTgt - e0) / d2;
+          if (!isFinite(kf2) || kf2 <= 0 || kf2 >= 100) break;
+          if (Math.abs(kf2 - kf) < 1e-4) { kf = kf2; break; }
+          kf = kf2;
         }
       }
-    } else {
+      if (!(isFinite(kf) && kf > 0 && kf < 100)) return { none: 'range' };
+      return { kf: kf, itF: itF, e0: e0, e1: e1 };
+    }
+    function fricNote(fr) {
+      notes.push('摩阻通道：用 DFG 的' + (tgtClean > 0 ? '「无岩屑 ECD（Clean）」' : '「ECD with cuttings」')
+        + '反求 kFric = ' + r(fr.kf, 4) + '（无摩阻 ' + r(fr.e0, 3) + ' ppg = ' + r(fr.e0 / PPG, 4) + ' g/cm³，'
+        + '单位摩阻 kFric=1 时 ' + r(fr.e1, 3) + ' ppg = ' + r(fr.e1 / PPG, 4) + ' g/cm³）'
+        + (fr.itF > 0 ? '，secant 迭代 ' + fr.itF + ' 次收敛' : '') + '。');
+    }
+    if (!fricOn) {
       notes.push('未填 DFG 的 ECD 参考值 —— 跳过摩阻通道校准。');
+    } else {
+      var fr1 = solveFric(undefined);
+      if (fr1.none === 'nocalc') notes.push('摩阻通道无法反求：基准工况无法计算。');
+      else if (fr1.none === 'small') notes.push('摩阻通道无法反求：摩阻对 ECD 的贡献过小（不可辨识）。');
+      else if (fr1.none === 'range') notes.push('摩阻通道无法反求（解出 kFric 不落在合理区间）。');
+      else {
+        res.kFric = fr1.kf;
+        if (fr1.kf < 0.15 || fr1.kf > 6) {
+          notes.push('反求的 kFric = ' + r(fr1.kf, 3) + ' 偏离 1 很远（>6× 或 <0.15×）。'
+            + '这通常意味着偏差的主因不在「摩阻倍数」，而在几何（井径/钻具外径）、'
+            + 'TVD 口径、或流变参数本身 —— 请先核对这几项再用校准值。');
+        }
+        fricNote(fr1);
+      }
     }
     /* ---- ② 携岩通道 ---- */
     var tgtCut = num(ref.cutT);              // h
@@ -4295,6 +4329,17 @@ html,body{max-width:100%;}
       }
     } else {
       notes.push('未填 DFG 的 CUT time 参考值 —— 跳过携岩通道校准。');
+    }
+    /* ---- ②.5 摩阻通道耦合收尾 ----
+     *   携岩通道定出的 kSlip 会经 φ（岩屑浓度）迭代轻微影响 clean ECD
+     *   （实测同工况差 ~0.01 ppg 量级）。用最终 kSlip 锁定后把摩阻通道
+     *   再解一次，保证「点一次即精确」且重复点击结果稳定（幂等）。 */
+    if (fricOn && res.kSlip !== 1) {
+      var fr2 = solveFric(res.kSlip);
+      if (!fr2.none && Math.abs(fr2.kf - res.kFric) > 1e-4) {
+        res.kFric = fr2.kf;
+        fricNote(fr2);
+      }
     }
     /* ---- 校准后复核 ---- */
     var oA = run({ kFric: res.kFric, kSlip: res.kSlip });
@@ -7091,8 +7136,17 @@ html,body{max-width:100%;}
     var o = $('dfgOut');
     if (o) { /* 标记已使用，便于主按钮联动 */ }
   }
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 0); });
-  else setTimeout(init, 0);
+  /* ★ 绑定时机加固（2026-10-24 修）：本脚本位于 DFG 卡片 HTML 之后，IIFE 执行时
+     「一键校准」等按钮已存在 ⇒ 立即绑定。曾经只走 DOMContentLoaded + setTimeout(0)，
+     在某些环境（headless/虚拟时间）里 window.load 先于该 setTimeout 触发，
+     导致页面可用期内监听未挂上、点「一键校准到 DFG」毫无反应。 */
+  function boot() {
+    try { init(); }
+    catch (e) { if (window.console) console.warn('[dfg-diag] init failed', e); }
+  }
+  if ($('btnCal')) boot();
+  else if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+  else setTimeout(boot, 0);
 
   window.ECDDiag = { render: render, refOf: refOf };
 })();
@@ -16529,6 +16583,34 @@ renderSnap();
     return { solve: solve };
   }
 
+  /* ---- 演示数据识别 ----
+   *   CALIB_DEF 的 5 行是内置示例；预填/换井预设会把它按当前密度平移（ECD + (ρ−1.65)）。
+   *   若用户没替换就运行标定，反求系数只是「复现演示目标」，毫无现场意义 ——
+   *   这里逐行判定并显式告警，防止把演示结果当真值写回 E5。 */
+  function demoRowFlags(pts) {
+    var defLines = String(CALIB_DEF.data || '').split('\n');
+    var defs = [];
+    for (var i = 0; i < defLines.length; i++) {
+      var c = defLines[i].split(',');
+      if (c.length < 8) continue;
+      defs.push({ md: parseFloat(c[0]), ecd: parseFloat(c[1]), cut: parseFloat(c[2]),
+                  rho: parseFloat(c[6]) });
+    }
+    var rhoEl = document.getElementById('calibRho');
+    var rhoDef = rhoEl ? (parseFloat(rhoEl.value) || 0) : 0;
+    return pts.map(function (pt) {
+      for (var j = 0; j < defs.length; j++) {
+        var d = defs[j];
+        if (Math.abs(pt.md - d.md) <= 2 && Math.abs(pt.cut - d.cut) <= 2) {
+          var rhoRow = pt.rho > 0 ? pt.rho : rhoDef;
+          var expect = d.ecd + (rhoRow > 0 ? (rhoRow - d.rho) : 0);
+          if (Math.abs(pt.ecd - expect) <= 0.03) return true;
+        }
+      }
+      return false;
+    });
+  }
+
   /* ---- 主入口：分段标定 ---- */
   function runSegmentCalib() {
     var E = window.ECDKit;
@@ -16545,6 +16627,18 @@ renderSnap();
       report.innerHTML = '<span style="color:#c8332a">至少需要 2 个有效实测点才能做分段标定。当前解析到 ' + pts.length + ' 个点。</span>';
       return;
     }
+
+    /* 演示数据检测：≥半数行与内置示例（按当前密度平移后）一致 ⇒ 标定结果无现场意义 */
+    var demoFlags = demoRowFlags(pts);
+    var demoN = demoFlags.filter(function (x) { return x; }).length;
+    var demoWarn = (demoN >= 2 && demoN >= pts.length * 0.5)
+      ? '<div class="note" style="margin-bottom:8px;border-left-color:var(--bad);color:var(--bad)">'
+      + '⚠ <b>检测到 ' + demoN + ' / ' + pts.length + ' 行与内置演示数据（示例井模板按当前密度平移）完全一致</b> —— '
+      + '这些行的「实测 ECD / CUT time」是程序自带的演示值，不是现场实测；'
+      + '用它们标定出的 kFric / kSlip 只是复现演示目标，<b>没有现场意义，不能写回 E5 使用</b>。<br>'
+      + '请把每一行替换为对应深度的<b>实测值</b>（PWD 实测 ECD + 示踪剂/岩屑返出测得的 CUT time + 当时的排量/转速/密度）；'
+      + '若要对齐 DFG 报告，请改用①页「与 DFG 的差异诊断 &amp; 一键校准」卡片直接填报告值一键反求。</div>'
+      : '';
 
     // 基础参数：①页最近一次计算的参数包（含井斜表/BHA/井径/流变，与 E5 校准同源）
     var baseParams = readBaseParams();
@@ -16625,7 +16719,8 @@ renderSnap();
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">备注</th></tr>';
     for (var h = 0; h < rows.length; h++) {
       var rw = rows[h];
-      var note = (rw.kfWhy || rw.ksWhy) ? esc(rw.kfWhy || rw.ksWhy) : '<span style="color:var(--ok)">✓</span>';
+      var note = (demoFlags[h] ? '<span style="color:var(--bad)" title="该行与内置演示数据一致">示例数据</span>　' : '')
+        + ((rw.kfWhy || rw.ksWhy) ? esc(rw.kfWhy || rw.ksWhy) : '<span style="color:var(--ok)">✓</span>');
       html += '<tr>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + rw.md + '</td>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.ecd > 0 ? rw.ecd.toFixed(3) : '–') + '</td>';
@@ -16640,7 +16735,8 @@ renderSnap();
     // 摘要
     var nKf = kfVals.filter(function(x){return x!==null;}).length;
     var nKs = ksVals.filter(function(x){return x!==null;}).length;
-    summary.textContent = '共 ' + pts.length + ' 个实测点 → ' + nb + ' 桶；成功反求 kFric ' + nKf + ' 点、kSlip ' + nKs + ' 点';
+    summary.textContent = (demoWarn ? '⚠ 含 ' + demoN + ' 行演示数据（标定结果不可用）　' : '')
+      + '共 ' + pts.length + ' 个实测点 → ' + nb + ' 桶；成功反求 kFric ' + nKf + ' 点、kSlip ' + nKs + ' 点';
 
     /* ---- 全井中位数 + 写回 E5 闭环（"随钻纠偏"的出口）----
      *   反求结果只有写回①页 E5 校准系数（i_kFric/i_kSlip）并重算，才形成纠偏闭环；
@@ -16676,7 +16772,7 @@ renderSnap();
     // 绘图
     drawChart(bucketMid, bucketKf, bucketKs);
 
-    report.innerHTML = html;
+    report.innerHTML = demoWarn + html;
     outCard.style.display = 'block';
   }
 
