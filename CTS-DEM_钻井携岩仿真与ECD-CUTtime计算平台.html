@@ -10344,11 +10344,16 @@ function parseBHA(txt,MD){
   const split=x=>x.split(/[\t,;|]+/).map(t=>t.trim());
   /* ---- 表头识别（列序） ---- */
   let iLen=2, iID=3, hdr=false;
-  const h0=split(lines[0]).map(t=>t.toLowerCase().replace(/[\s()（）]/g,''));
-  const pick=re=>{for(let k=0;k<h0.length;k++) if(re.test(h0[k])) return k; return -1;};
-  const cOD=pick(/^(od|外径|钻具外径)$/), cLen=pick(/^(length|len|长度|单根长度)$/),
-        cID =pick(/^(id|内径|水眼|通径)$/);
-  if(cOD>=0&&cLen>=0){ iLen=cLen; iID=cID; hdr=true; lines.shift(); }
+  /* ★ 表头不一定在首行：现场导出的 CSV 常带一行标题（如"XX井三开钻具组合"），
+     旧版只查 lines[0] → 漏掉真正表头、被迫走无表头自动打分（脆弱）。
+     现扫描前 3 行，命中即按表头列序解析（确定性列序，不再赌打分）。 */
+  for(let hi=0; hi<Math.min(3,lines.length); hi++){
+    const h0=split(lines[hi]).map(t=>t.toLowerCase().replace(/[\s()（）]/g,''));
+    const pick=re=>{for(let k=0;k<h0.length;k++) if(re.test(h0[k])) return k; return -1;};
+    const cOD=pick(/^(od|外径|钻具外径)$/), cLen=pick(/^(length|len|长度|单根长度|l)$/),
+          cID =pick(/^(id|内径|水眼|通径)$/);
+    if(cOD>=0&&cLen>=0){ iLen=cLen; iID=cID; hdr=true; lines.splice(hi,1); break; }
+  }
   /* ---- 通用解析（给定列序） ---- */
   const build=(li,ii)=>{
     const out=[];
@@ -10381,7 +10386,12 @@ function parseBHA(txt,MD){
     for(const r of rows){
       tot+=r.len;
       if(r.id!=null && !(r.id>1 && r.id<r.od)) bad+=2;   /* 内径必须 < 外径 */
-      if(r.len>0 && r.len<0.05) bad+=1;                  /* 长度 <5cm 也可疑 */
+      if(r.len>40){ bad+=2; }                            /* ★ 单根 >40m 不合常理：钻具表逐元件列，
+                                                             长度最大 ~10m（钻铤/立柱）；>40m 的"长度"
+                                                             基本是把内径(mm)误当长度读 */
+      else if(r.len>0 && r.len<0.05) bad+=1;             /* 长度 <5cm 也可疑 */
+      if(r.id!=null && r.id<r.od*0.3) bad+=1;            /* ★ 内径/外径 <0.3 不合常理：多为把长度(m)
+                                                             误当内径读（如 9.14 vs 127） */
     }
     if(MD>0){ if(tot<MD*0.9) bad+=3; else if(tot>MD*6) bad+=2; }
     return {bad:bad,tot:tot};
@@ -11306,6 +11316,9 @@ function runCalc(fromUser){
        <tr><td>★ N-S 低边耦合 Cut Time</td><td><b style="color:var(--accent)">${cutT_nsl.toFixed(1)} min</b></td><td><b>按井段两层加权</b>：仅「钻具局部填满井眼(BHA/螺杆/扶正器/震击器) ∧ 大斜度」的井段把床层中的<b>锁死份额</b>=h*·wLS 计入窄缝速度 vBed，其余井段走悬浮主流 vSusp（CFD-DEM/N-S 平均口径）。v<sub>low</sub>=lowRatio·V<sub>eff</sub> 为偏心窄缝 H-B 局部流速（同一 Φ 解）</td></tr>
        <tr><td>★ N-S 低边耦合<b>适用井段</b></td><td style="color:var(--accent)">${lowSideLen.toFixed(0)} m / ${MD>0?(100*lowSideLen/MD).toFixed(1):'–'}%</td><td>仅下列井段用低边窄缝模型，其余井段走悬浮主流（其他公式）：<b>${(lowSideRuns&&lowSideRuns.length)?lowSideRuns.map(r=>'MD '+r.md0.toFixed(0)+'–'+r.md1.toFixed(0)+'（'+r.len.toFixed(1)+'m, 权重均 '+(r.wSum/r.len).toFixed(2)+'）').join('；'):'无（全井走悬浮主流）'}</b></td></tr>
        <tr><td>N-S 纯低边边界（诊断）</td><td style="color:var(--sub)">${cutT_nslb.toFixed(1)} min</td><td>仅<b>实际低边井段</b>（BHA/接触元件 ∧ 大斜度）内锁死、其余井段走悬浮的<b>理论上限</b>，评估最坏子群。<b>不是循环周期</b>。若此值 ≫ t<sub>lag</sub>，说明低边窄缝确有严重滞流，但岩屑大部分仍在主流中输送</td></tr>
+       <tr><td>★ 三口径精确差<br><span style="font-size:10.5px;color:var(--sub)">秒级 · 解释"为何看起来一样"</span></td>
+         <td style="color:var(--blue)">Δ(N-S低边−CFD-DEM) = <b>${((cutT_nsl-cutT_cfd)*60).toFixed(2)} s</b><br>Δ(纯低边−CFD-DEM) = <b>${((cutT_nslb-cutT_cfd)*60).toFixed(2)} s</b></td>
+         <td><b>不是巧合、也不是强制相同</b>：非低边井段（wLS=0，占 99%+）三个公式逐段严格同值——悬浮层速度 v<sub>susp</sub>=TR(θ,V<sub>eff</sub>)·V<sub>eff</sub> 与 CFD-DEM 引擎本就是同一表达式；差异只来自低边适用井段内床层锁死份额的加权（N-S低边用 h*·wLS、纯低边用 wLS）。本井床高比 h*≈${(hAvg*1000).toFixed(1)}‰（床极薄）⇒ 差异仅秒级，被 0.1 min 显示精度抹平。若 Δ 达分钟级，说明低边窄缝确实在拖慢岩屑</td></tr>
        <tr><td>DFEM 口径 Cut Time</td><td>${cutT_dfem.toFixed(1)} min</td><td>v_p=V_ANN−V_SLIP</td></tr>
        <tr><td colspan="3" style="text-align:left;background:#eef2f7"><b>★ 物理下限校验（Cut Time 不可能快于泥浆）</b></td></tr>
        <tr><td><b>泥浆上返时间 t<sub>lag</sub></b></td><td><b>${lagMin.toFixed(1)} min</b></td>
