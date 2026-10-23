@@ -2413,7 +2413,9 @@ html,body{max-width:100%;}
         · 实测 ECD &gt; 0 → 反求该点 <b>kFric</b>（摩阻通道）；<br>
         · 实测迟到时间 &gt; 0 → 反求该点 <b>kSlip</b>（携岩通道）；<br>
         · 排量 / ROP / 密度 / 粒径若填了，就用该点的<b>局部工况</b>反求（更真实）；留空则沿用上方「① ECD 计算」当前值。<br><br>
-        <b>示例已预填</b>（可清空后贴你自己的现场数据）。
+        <b>示例已预填</b>（可清空后贴你自己的现场数据；点「<b>恢复默认</b>」随时取回示例）。
+        ① 页切换井例预设（实井/OBM 井浆）时，本页示例会自动按当前井深/密度/排量折算——
+        你一旦粘贴/修改过数据即锁定，不再被覆盖。
       </span></span></div>
       <div class="row" style="grid-template-columns:1fr auto auto">
         <div class="grp">
@@ -2448,6 +2450,7 @@ html,body{max-width:100%;}
         <div class="grp" style="align-self:end">
           <button class="btn" onclick="window.__calibRun()" style="margin-top:18px">▶ 运行分段标定</button>
           <button class="reset" onclick="window.__calibClear()" style="margin-top:18px">清除</button>
+          <button class="reset" onclick="window.__calibReset()" style="margin-top:18px" title="取回内置示例与默认基准值（井斜45°/密度/排量按①页当前井折算）">恢复默认</button>
         </div>
       </div>
     </div>
@@ -4015,6 +4018,32 @@ html,body{max-width:100%;}
     if (out.phiCapped) {
       out.warn.push('存在岩屑体积分数达到堆积上限（' + r(phiPct, 2) + '% = 所选形状的堆积孔隙度）的井段 —— '
         + '物理上环空已被岩屑床填满，实际应提高排量/转速或降低 ROP。');
+    }
+    /* ---- 返速合理性体检（2026-10-24，用户质询"返速 1995.76 m/min 怎么可能"）----
+       ① 环空返速 ≥ 600 m/min（10 m/s）= 物理不可能长期维持（憋泵/冲蚀级），
+          几乎全是「钻具外径贴近井径」（单边间隙 mm 级，如 Ø163 震击器 in Ø165.1 井眼，
+          单边 1.05 mm → 算术上就得 33 m/s）或井径/外径数据填错；
+       ② 钻具外径 ≥ 井径 = 几何不成立，segCalc 静默返 0 —— ⑦ 表必须显式标注而不是裸 0.00；
+       ③ 单边间隙 < 3 mm = 间隙过紧警示（尚可算但摩阻必失真）。 */
+    out.vamBadN = 0; out.badGeomN = 0; out.tightGapN = 0; out.vamMax = 0; out.vamBadFirst = null;
+    segs.forEach(function (o) {
+      if (o.bd === 'bad') { out.badGeomN++; return; }
+      if (o.vam > out.vamMax) { out.vamMax = o.vam; }
+      if (o.vam >= 600) { out.vamBadN++; if (!out.vamBadFirst) out.vamBadFirst = o; }
+      else if (o.gap * 25.4 < 3) { out.tightGapN++; }
+    });
+    if (out.vamBadN) {
+      out.warn.push('⚠ 返速合理性体检：有 ' + out.vamBadN + ' 个井段环空返速 ≥ 600 m/min（10 m/s），'
+        + '最高 ' + r(out.vamMax, 0) + ' m/min @ MD ' + r(out.vamBadFirst ? out.vamBadFirst.mid : 0, 0)
+        + ' m —— 物理上不可能（冲蚀/憋泵级）。原因几乎都是「钻具外径贴近井径」（单边间隙 mm 级，'
+        + '如 Ø163 随钻震击器在 Ø165.1 井眼里单边只剩 1.05 mm）或井径/外径列填反，请核对 BHA 表 OD 列与井径剖面。');
+    }
+    if (out.badGeomN) {
+      out.warn.push('⚠ 返速合理性体检：有 ' + out.badGeomN + ' 个井段钻具外径 ≥ 井径（几何不成立），'
+        + '该段已按「旁通」处理、⑦ 表返速显示 —（不是真实 0）—— 请核对 BHA 表 OD 列'
+        + '（如 Ø171/Ø172 工具出现在 Ø165.1 井眼中）或井径剖面是否漏填扩展段。');
+    } else if (out.tightGapN) {
+      out.warn.push('⚠ 返速合理性体检：有 ' + out.tightGapN + ' 个井段单边环空间隙 < 3 mm —— 返速与摩阻在该段必然失真，请复核钻具外径。');
     }
 
     /* ---- 三贡献分解（恒等式 dTotal ≡ dInt + dPvt 要锁死）----
@@ -6089,14 +6118,27 @@ html,body{max-width:100%;}
       var gapWarn = (s.gap < 0.4) ? ' style="color:var(--wn)"' : '';
       var etaPct = s.FT * 100;
       var etaCol = etaPct > 70 ? 'var(--ok)' : (etaPct > 40 ? 'var(--tx)' : 'var(--wn)');
+      /* 返速合理性标注（2026-10-24）：几何不成立 / 返速≥600m/min / 间隙<3mm 三级 */
+      var vamCell, vcutCell, vamPill = '';
+      if (s.bd === 'bad') {
+        vamCell = '<span style="color:var(--wn)">—</span>';
+        vcutCell = '<span style="color:var(--wn)">—</span>';
+        vamPill = ' <span class="pill warn" title="' + esc(s.note || '钻具外径 ≥ 井径，几何不成立') + '">几何不成立</span>';
+      } else {
+        var vamBad = s.vam >= 600, gapTight = s.gap * 25.4 < 3;
+        vamCell = (vamBad ? '<b style="color:var(--accent)">' + dv('vel', s.vam, 2) + '</b>' : dv('vel', s.vam, 2));
+        vcutCell = dv('vel', s.vcutBed, 2);
+        if (vamBad) vamPill += ' <span class="pill warn" title="环空返速 ≥ 600 m/min（10 m/s），物理上不可能长期维持 —— 钻具外径贴近井径或数据填错">返速异常</span>';
+        else if (gapTight) vamPill += ' <span class="pill warn" title="单边环空间隙 < 3 mm，返速与摩阻必然失真">间隙过小</span>';
+      }
       h += '<tr><td>' + (i + 1) + '</td>'
         + '<td>' + dv('len', s.md0, 0) + ' ~ ' + dv('len', s.md1, 0) + '</td>'
         + '<td>' + fin(s.inc, 0) + '</td>'
         + '<td' + gapWarn + '>' + dv('dia', s.dh, 1) + '</td>'
         + '<td>' + dv('dia', s.dbo, 1) + '</td>'
         + '<td class="t">' + esc(s.pipeName || '—') + '</td>'
-        + '<td>' + dv('vel', s.vam, 2) + '</td>'
-        + '<td>' + dv('vel', s.vcutBed, 2) + '</td>'
+        + '<td>' + vamCell + vamPill + '</td>'
+        + '<td>' + vcutCell + '</td>'
         + '<td style="color:' + etaCol + '">' + fin(etaPct, 1) + '</td>'
         + '<td>' + fin(s.vfSeg * 100, 3) + '</td>'
         + '<td>' + dv('dpdl', s.dpdl, 4) + '</td>'
@@ -6110,6 +6152,11 @@ html,body{max-width:100%;}
       + '<b>摩阻</b> 为环空单位长度压耗梯度（屈服幂律本构，含接头附加时已在 ECD 积分里单列）。'
       + (res.dpdlCapped ? '<br><span style="color:var(--wn)">⚠ 有井段的摩阻梯度被<b>工程上限封顶</b>（5 psi/ft ≈ '
         + dv('dpdl', 5, 1) + ' ' + lb('dpdl') + '）—— 通常意味着环空过紧或流变参数失真，请复核输入。</span>' : '')
+      + '<br><b>返速合理性标注</b>：<span class="pill warn">返速异常</span> = 环空返速 ≥ 600 m/min（10 m/s），'
+      + '物理上不可能长期维持（冲蚀/憋泵级），几乎都是「钻具外径贴近井径」（如 Ø163 震击器 in Ø165.1 井眼，'
+      + '单边间隙仅 1.05 mm → 算术上就得 33 m/s）或井径/外径列填反；'
+      + '<span class="pill warn">间隙过小</span> = 单边间隙 < 3 mm（尚可计算但该段返速/摩阻必然失真）；'
+      + '<span class="pill warn">几何不成立</span> = 钻具外径 ≥ 井径，该段无过流面积，返速显示 —（不是真实 0）。'
       + '</div>';
     return h;
   }
@@ -13732,6 +13779,7 @@ function loadExample(){
   document.getElementById('bha').value=BHA_PRE;
   var cp=document.getElementById('caliper'); if(cp) cp.value='';   /* 预设=完整井例，井径剖面一并清空 */
   runCalc();
+  try{ if(window.__calibSyncWell) window.__calibSyncWell(); }catch(e){}   /* ④ 标定面板默认值跟随本井例 */
 }
 
 /* ★ 安页22-2HF 实井预设（2026-10-20）——
@@ -13750,6 +13798,7 @@ window.loadAY22 = function(){
   var d={Dhole:230, MD:4772, RPM:63, Q:28, ROP:8, nzN:6, nzD:17.46, dPmot:4.2, dPoth:0, spp:36.45, torque:12.83, qMot:6.0};   /* ★ 必须放在 loadOBM 之后，否则被覆盖 */
   for(var k in d){ var el=document.getElementById(k); if(el) el.value=d[k]; }
   try{ runCalc(); }catch(e){}
+  try{ if(window.__calibSyncWell) window.__calibSyncWell(); }catch(e){}   /* ④ 标定面板默认值跟随本井例 */
   try{ setTimeout(function(){ if(window.runTrip) window.runTrip(); }, 120); }catch(e){}
 };
 
@@ -13769,6 +13818,7 @@ window.loadOBM = function(){
   runCalc();
   /* ③ 页由 runTrip 单独渲染，runCalc 不覆盖它 —— 这里补一次，避免切过去看到上一口井的数 */
   try{ setTimeout(function(){ if(window.runTrip) window.runTrip(); }, 80); }catch(e){}
+  try{ if(window.__calibSyncWell) window.__calibSyncWell(); }catch(e){}   /* ④ 标定面板默认值跟随本井浆 */
 };
 loadExample();
 renderFigGallery();   /* ⑮ fig1-6 图集缩略图 + 灯箱 */
@@ -16639,6 +16689,90 @@ renderSnap();
     document.getElementById('calibData').value = '';
     document.getElementById('calibOutCard').style.display = 'none';
   }
+
+  /* ---- 默认值（单一来源）----
+   *   HTML 里预填的示例即由 CALIB_DEF 生成；「恢复默认」按钮、① 页换井预设
+   *   同步都走这里，避免两处各写一份跑漂。 */
+  var CALIB_DEF = {
+    data: '1800,1.72,52,18.6,24,9,1.63,5.0\n'
+        + '2600,1.71,64,20.1,23,7,1.63,4.5\n'
+        + '3400,1.69,79,21.8,22,6,1.64,4.0\n'
+        + '4200,1.67,98,23.5,21,5,1.64,3.5\n'
+        + '5000,1.66,122,25.4,20,4,1.65,3.0',
+    inc: 45, rho: 1.65, q: 22, bucket: 'auto'
+  };
+  var panelTouched = false;
+
+  function applyCalibDefaults() {
+    document.getElementById('calibData').value = CALIB_DEF.data;
+    document.getElementById('calibInc').value = CALIB_DEF.inc;
+    document.getElementById('calibRho').value = CALIB_DEF.rho;
+    document.getElementById('calibQ').value = CALIB_DEF.q;
+    document.getElementById('calibBuckets').value = CALIB_DEF.bucket;
+    document.getElementById('calibOutCard').style.display = 'none';
+  }
+
+  /* 按当前井折算示例点：MD/ECD/迟到时间/立压按井深比例缩放，排量与密度取当前井值。
+   * （ECD 平移量 = 当前密度 − 示例基准 1.65，保持「ECD − 密度 = 摩阻当量」的相对关系。） */
+  function wellScaledExample(md, rho, q) {
+    var defMax = 5000;
+    var ratio = (md > 0 ? md / defMax : 1);
+    if (Math.abs(ratio - 1) < 0.2) ratio = 1;      // 井深接近示例范围就不动
+    return CALIB_DEF.data.split('\n').map(function (l) {
+      var c = l.split(',');
+      c[0] = String(Math.round(parseFloat(c[0]) * ratio / 10) * 10);
+      c[1] = (parseFloat(c[1]) - 1.65 + rho).toFixed(2);
+      c[2] = String(Math.round(parseFloat(c[2]) * ratio));
+      c[3] = (parseFloat(c[3]) * ratio).toFixed(1);
+      c[4] = String(q);
+      c[6] = rho.toFixed(2);
+      return c.join(',');
+    }).join('\n');
+  }
+
+  /* ① 页换井预设同步（loadExample / loadOBM / loadAY22 调用）：
+     不传参即从 ① 页输入框读当前井深/密度/排量。
+     ★ 只在用户没动过本面板时更新 —— 绝不覆盖现场粘贴的真实实测数据。 */
+  window.__calibSyncWell = function (md, rho, q) {
+    if (panelTouched) return { skipped: true };
+    var mdEl = document.getElementById('MD'), rhoEl = document.getElementById('rho'), qEl = document.getElementById('Q');
+    if (md == null) md = mdEl ? parseFloat(mdEl.value) : 0;
+    if (rho == null) rho = rhoEl ? parseFloat(rhoEl.value) : 0;
+    if (q == null) q = qEl ? parseFloat(qEl.value) : 0;
+    if (!(rho > 0)) rho = CALIB_DEF.rho;
+    if (!(q > 0)) q = CALIB_DEF.q;
+    if (!(md > 0)) md = CALIB_DEF.defMax || 5000;
+    document.getElementById('calibData').value = wellScaledExample(md, rho, q);
+    document.getElementById('calibRho').value = rho;
+    document.getElementById('calibQ').value = q;
+    document.getElementById('calibOutCard').style.display = 'none';
+    return { skipped: false, md: md, rho: rho, q: q };
+  };
+
+  window.__calibReset = function () {
+    panelTouched = false;
+    applyCalibDefaults();
+  };
+
+  /* 用户一动面板即锁定（touched），预设换井不再覆盖 */
+  ['calibData', 'calibInc', 'calibRho', 'calibQ', 'calibBuckets'].forEach(function (id) {
+    var e = document.getElementById(id);
+    if (e) e.addEventListener('input', function () { panelTouched = true; });
+  });
+
+  /* 首屏适配：① 页的井例预设（loadExample / loadAY22）在更早的脚本块里已跑完，
+     这里把示例点折算到当前井深/密度/排量；用户随后一动面板即锁定为自有数据。 */
+  try {
+    var _md = document.getElementById('MD'), _rho = document.getElementById('rho'), _q = document.getElementById('Q');
+    var _mdv = _md ? parseFloat(_md.value) : 0;
+    var _rhov = _rho ? parseFloat(_rho.value) : 0;
+    var _qv = _q ? parseFloat(_q.value) : 0;
+    if (_mdv > 0 && _rhov > 0 && _qv > 0 && (_rhov !== CALIB_DEF.rho || _qv !== CALIB_DEF.q)) {
+      document.getElementById('calibData').value = wellScaledExample(_mdv, _rhov, _qv);
+      document.getElementById('calibRho').value = _rhov;
+      document.getElementById('calibQ').value = _qv;
+    }
+  } catch (e) { console.warn('[calib-init]', e); }
 
   window.__calibRun = runSegmentCalib;
   window.__calibClear = clearCalib;
