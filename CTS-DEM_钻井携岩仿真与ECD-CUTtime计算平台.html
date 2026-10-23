@@ -10823,8 +10823,20 @@ function runCalc(fromUser){
   if(tr && secs.length){
     cutT=0; cutT_old=0;
     for(let i=1;i<tr.MD.length;i++){
-      const ds=tr.MD[i]-tr.MD[i-1]; if(ds<=0) continue;
-      const mdMid=(tr.MD[i-1]+tr.MD[i])/2;
+      const mdA=tr.MD[i-1], mdB=tr.MD[i]; const dsAll=mdB-mdA; if(dsAll<=0) continue;
+      /* ★ 按 BHA 元件亚分段：在测段 [mdA,mdB] 内插入 secs 边界，使钻具外径 / 低边权重随元件变化，
+         底部 13m 组合、震击器 5.4m、振荡器 5.8m 等窄接触元件不再被 ~30m 测点中点漏检。 */
+      const _bnd=[mdA, mdB];
+      for(const _s of secs){ const _hb=_s.holeTop,_ht=_s.holeBot;
+        if(_hb>mdA+1e-9&&_hb<mdB-1e-9) _bnd.push(_hb);
+        if(_ht>mdA+1e-9&&_ht<mdB-1e-9) _bnd.push(_ht); }
+      _bnd.sort((a,b)=>a-b);
+      const mdMidAll=(mdA+mdB)/2;
+      /* ★ 各口径逐亚分段积分（所有引擎 / 物理下限 / 床高 / 低边权重均按元件分辨率计算） */
+      let _pv=null,_pnsl=null,_lr=1,_sl=false,_hs=0,_dls=0,_ee=0,_dhm=0,_blk=0,_veff=0,_vgeo=0,_trv=0,_dfr=null,_pvdfem=0;
+      for(let _bi=0;_bi<_bnd.length-1;_bi++){
+        const _a=_bnd[_bi],_b=_bnd[_bi+1]; const ds=_b-_a; if(ds<=1e-9) continue;
+        const mdMid=(_a+_b)/2;
       const DhL=dhAt(mdMid);                        /* ★ 该测点局部井径（井径剖面） */
       /* ★ 几何保护：钻具 OD ≥ 井径（钻头 / 缩径 / 钻具表外径填错）时 A0≤0 → V_ann=NaN
          → Cut Time 与全部口径一起变成 NaN（本次实测整页 Cut Time = NaN 就是这个原因）。 */
@@ -10932,12 +10944,16 @@ function runCalc(fromUser){
       const vsO=Ynum>0.143?0:vsTerm;
       const vAxO=Math.max(0.02, Vgeo - vsO*Math.sin(incD*Math.PI/180));
       cutT_old+=ds/vAxO;
-      const row={md:mdMid,inc:incD,V:Vgeo,Veff,TR:TRv,vp:vpCFD,vpNSL,lowRatio,slitLocked,hStar,dls:dlsD,eEff:eEff,dh:DhL*1000,block:(1-Aeff2/A0)*100};
+      /* 快照本测段末亚分段的代表值，供 ⑤ 表/剖面显示（积分已逐元件完成，与 lowSideRuns 精细扫描一致） */
+      _pv=vpCFD; _pnsl=vpNSL; _lr=lowRatio; _sl=slitLocked; _hs=hStar; _dls=dlsD; _ee=eEff;
+      _dhm=DhL*1000; _blk=(1-Aeff2/A0)*100; _veff=Veff; _vgeo=Vgeo; _trv=TRv; _dfr=dfr; _pvdfem=vpDFEM;
+      }   /* ← 亚分循环 _bi 结束 */
+      const row={md:mdMidAll,inc:tr.incAt(mdMidAll),V:_vgeo,Veff:_veff,TR:_trv,vp:_pv,vpNSL:_pnsl,lowRatio:_lr,slitLocked:_sl,hStar:_hs,dls:_dls,eEff:_ee,dh:_dhm,block:_blk};
       cutRows.push(row);
       if(i%6===0||i===tr.MD.length-1) cutSegs.push(row);
-      dfemRows.push({md:mdMid,inc:incD,raw:dfr});
-      if(i%6===0||i===tr.MD.length-1) dfemSegs.push({md:mdMid,inc:incD,raw:dfr,vp:vpDFEM});
-    }
+      dfemRows.push({md:mdMidAll,inc:tr.incAt(mdMidAll),raw:_dfr});
+      if(i%6===0||i===tr.MD.length-1) dfemSegs.push({md:mdMidAll,inc:tr.incAt(mdMidAll),raw:_dfr,vp:_pvdfem});
+    }   /* ← 测段循环 i 结束 */
     /* ★ 低边适用井段（按 BHA 元件 + 轨迹井斜复合校对，精细分辨率）
        —— 关键修正：原实现在每个轨迹测点(间距~30m)上判定 wLS，会漏掉底部短
           组合(≈13m)、随钻震击器(≈5m)、水力振荡器(≈6m)等窄 BHA 接触元件；
