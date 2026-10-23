@@ -2186,6 +2186,7 @@ html,body{max-width:100%;}
           <option value="fresh">淡水 / 海水（按 0）</option>
         </select></div>
         <div class="f"><label>盐度<span class="u">wt %</span></label><input id="i_pvSal" placeholder="19.3"><span class="d">占水相质量；饱和 NaCl 26 / CaCl2 40</span></div>
+        <div class="f"><label>或 氯离子 Cl⁻<span class="u">mg/L</span></label><input id="i_pvCl" placeholder="留空 = 由盐度换算"><span class="d" id="i_pvClD">水相(滤液)口径；两栏联动，改哪一栏都会自动换算另一栏</span></div>
         <div class="f"><label>固相 ASG<span class="u">—</span></label><input id="i_pvAsg" placeholder="4.20"><span class="d">重晶石 4.20；低密固相 2.65</span></div>
         <div class="f"><label>泥浆密度<span class="u">g/cm³</span></label><input id="i_pvRho" placeholder="留空 = 取 ② 地面密度"><span class="d">用于反解固相体积分数</span></div>
         <div class="f"><label>参考温度 T₀<span class="u">°C</span></label><input id="i_pvT0" placeholder="留空 = 取 E1 地面参考温度"></div>
@@ -16115,11 +16116,12 @@ renderSnap();
   if(bCalc) bCalc.addEventListener('click', function(){ run(false); });
   if(bApply) bApply.addEventListener('click', function(){ run(true); });
   if(bReset) bReset.addEventListener('click', function(){
-    ['i_pvOwr','i_pvSal','i_pvAsg','i_pvRho','i_pvT0','i_pvT1','i_pvP1'].forEach(function(id){
+    ['i_pvOwr','i_pvSal','i_pvCl','i_pvAsg','i_pvRho','i_pvT0','i_pvT1','i_pvP1'].forEach(function(id){
       var e = document.getElementById(id); if(e) e.value = '';
     });
     var o = document.getElementById('i_pvOil'); if(o) o.value = 'diesel';
     var s = document.getElementById('i_pvSalt'); if(s) s.value = 'cacl2';
+    try{ syncCl(); }catch(_){}
     var box = document.getElementById('pvOut');
     if(box) box.innerHTML = '—（已清空。E1 的 α / β 保持当前值不变）';
     window.__ctsPVTResult = null;
@@ -16133,8 +16135,96 @@ renderSnap();
     var v = {cacl2:'19.3', nacl:'20', kcl:'5', fresh:'0'}[selSalt.value] || '';
     if(!e.value || !num(e.value)) e.value = v;
     e.placeholder = v;
+    syncCl();
     autoRun();
   });
+
+  /* ===== 盐度 wt% ⇄ 氯离子 Cl⁻ mg/L 双口径联动 =================================
+     化验单上常给「氯离子 mg/L」，而本卡的组成法只认「盐种 wt%（占水相质量）」。
+     两者的桥是盐种里 Cl 的质量分数 f 与盐水密度 ρ_brine：
+         C_Cl [mg/L] = 1e4 · ρ_brine(S) · S[wt%] · f_Cl
+     ρ_brine 直接用本卡 α/β 同一条链上的 brineEOS(盐种, S, 0.1 MPa, T0)，
+     所以两口径永远自洽，不会出现"换算完再算 α/β 又对不上"的情况。
+     ⚠ 口径说明：Cl⁻ 按水相(滤液)体积计。若化验单给的是**全浆** Cl⁻，
+       需先除以水相体积分数 WPF（OWR 80:20 → WPF≈0.20）再填。                */
+  var CLF = {cacl2:0.6389, nacl:0.6066, kcl:0.4756, fresh:0};   /* Cl 在盐中的质量分数 */
+  var SATMAX = {cacl2:40, nacl:26, kcl:24, fresh:3.5};          /* 饱和盐度 wt% */
+  var SALTNM = {cacl2:'CaCl2', nacl:'NaCl', kcl:'KCl', fresh:'淡水/海水'};
+
+  function brineRho(type, S){
+    var t0 = defaults().t0;
+    return brineEOS(type, Math.max(0, Math.min(S, SATMAX[type] || 40)), P0PSI, c2f(t0));
+  }
+  /* 盐度 wt% → Cl mg/L */
+  function salToCl(S, type){
+    if(!(S > 0) || !(CLF[type] > 0)) return 0;
+    return 1e4 * brineRho(type, S) * S * CLF[type];
+  }
+  /* Cl mg/L → 盐度 wt%（ρ_brine 依赖 S，故不动点迭代；4~6 次即收敛到 1e-9） */
+  function clToSal(C, type){
+    var f = CLF[type] || 0;
+    if(!(C > 0) || !(f > 0)) return null;
+    var smax = SATMAX[type] || 40;
+    var S = Math.min(smax, C / (1e4 * f * 0.9982));            /* 初值：按纯水密度 */
+    for(var i = 0; i < 20; i++){
+      var Sn = C / (1e4 * f * brineRho(type, S));
+      if(!isFinite(Sn)) return null;
+      Sn = Math.max(0, Math.min(smax, Sn));
+      if(Math.abs(Sn - S) < 1e-8){ S = Sn; break; }
+      S = Sn;
+    }
+    return S;
+  }
+
+  var iSal = document.getElementById('i_pvSal');
+  var iCl  = document.getElementById('i_pvCl');
+  var iClD = document.getElementById('i_pvClD');
+
+  /* 以盐度为源 → 刷 Cl 栏 + 提示 */
+  function syncCl(){
+    if(!iCl) return;
+    var type = (selSalt && selSalt.value) || 'cacl2';
+    var S = num(iSal && iSal.value);
+    if(!(CLF[type] > 0)){
+      iCl.value = '';
+      iCl.placeholder = '该盐型无 Cl 口径';
+      if(iClD) iClD.innerHTML = '淡水/海水请直接填盐度（海水 ≈ 3.5 wt% ⇔ Cl⁻ ≈ 19 000 mg/L）';
+      return;
+    }
+    if(S === null || !(S > 0)){
+      iCl.value = '';
+      iCl.placeholder = '留空 = 由盐度换算';
+      if(iClD) iClD.innerHTML = '水相(滤液)口径；两栏联动，改哪一栏都会自动换算另一栏';
+      return;
+    }
+    var C = salToCl(S, type), rb = brineRho(type, S);
+    iCl.value = Math.round(C);
+    if(iClD) iClD.innerHTML = '等效 Cl⁻ <b>' + Math.round(C).toLocaleString('en-US') + '</b> mg/L'
+      + '（ρ<sub>盐水</sub> ' + rb.toFixed(4) + ' g/cm³ @ T₀）'
+      + (S > SATMAX[type] ? '<br><b style="color:#c0392b">超过饱和盐度 ' + SATMAX[type] + ' wt%</b>' : '');
+  }
+  /* 以 Cl 为源 → 反算盐度写回 wt% 栏 */
+  function syncSal(){
+    if(!iSal) return;
+    var type = (selSalt && selSalt.value) || 'cacl2';
+    var C = num(iCl && iCl.value);
+    if(C === null || !(C > 0)){ syncCl(); return; }
+    var S = clToSal(C, type);
+    if(S === null){
+      if(iClD) iClD.innerHTML = '<b style="color:#c0392b">当前盐型（' + (SALTNM[type] || type) + '）不含 Cl，请改用 CaCl2 / NaCl / KCl</b>';
+      return;
+    }
+    iSal.value = S.toFixed(S < 1 ? 3 : 2);
+    var rb = brineRho(type, S);
+    if(iClD) iClD.innerHTML = '<b>' + Math.round(C).toLocaleString('en-US') + '</b> mg/L = <b>'
+      + S.toFixed(2) + ' wt% ' + (SALTNM[type] || type) + '</b>（ρ<sub>盐水</sub> ' + rb.toFixed(4) + ' g/cm³ @ T₀）'
+      + (Math.abs(S - SATMAX[type]) < 0.05 ? '<br><b style="color:#c0392b">已到饱和盐度上限</b>' : '');
+    autoRun();
+  }
+
+  if(iSal) iSal.addEventListener('input', function(){ syncCl(); });
+  if(iCl)  iCl.addEventListener('input', function(){ syncSal(); });
+  if(iCl)  iCl.addEventListener('change', function(){ syncSal(); });
 
   /* 无油相 -> 灰掉 OWR */
   var selOil = document.getElementById('i_pvOil');
@@ -16166,6 +16256,7 @@ renderSnap();
       try{
         var box = document.getElementById('pvOut');
         if(box) run(false);
+        try{ if(iSal && num(iSal.value) !== null) syncCl(); }catch(_){}   /* 首屏把 Cl⁻ 栏填上 */
       }catch(e){ console.warn('[pvt-boot]', e); }
     }, 1500);
   });
