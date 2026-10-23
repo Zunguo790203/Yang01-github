@@ -10680,7 +10680,10 @@ function runCalc(fromUser){
                phiL:dpdzL, phiT:dpdzT, Re:tt.Re, turb:(tt.Re>=2100),
                phi7:(tt.Re>=2100?dpdzT:dpdzL)});
   }
-  const ecd=dP=>rhoBase+dP/(G*TVD);
+  /* ★ ECD 静压项必须用「环空等效静密度 ESD = 静压/(g·TVD) = 柱内平均密度 ρ_avg」，
+     而非井底密度 ρ_bh（柱内最大值）。旧版用 ρ_bh → 压缩主导时系统性高估静态 ECD
+     （用户实测：停泵 ECD 1.802 > 地面 1.76，其中 ρ_bh−ρ_avg 就贡献了 +0.012 SG）。 */
+  const ecd=dP=>rhoUse+dP/(G*TVD);
   const Elam=ecd(dPl)/1000, Eturb=ecd(dPt)/1000;
   /* ---------- ⑪ N-S 环空流动引擎：逐段数值解（Navier–Stokes 动量方程） ----------
      ρ(∂u/∂t + u·∇u) = −∇p + ρg + ∇·τ   ——  充分发展、轴对称环空的柱坐标形式
@@ -11031,7 +11034,7 @@ function runCalc(fromUser){
   const kBedIn=parseFloat(((document.getElementById('kBed')||{}).value)||'0.5');
   const kBed=isFinite(kBedIn)?Math.max(0,Math.min(1,kBedIn)):0.5;
   const bedFac=1+kBed*hAvg/Math.max(1-hAvg,1e-6);
-  const fricL=Math.max(0,Elam-rhoBase/1000), fricT=Math.max(0,Eturb-rhoBase/1000);  /* 摩阻分量 */
+  const fricL=Math.max(0,Elam-rhoUse/1000), fricT=Math.max(0,Eturb-rhoUse/1000);  /* 摩阻分量（扣 ESD=柱内平均密度） */
   const dEc=drho*Cv/1000;                       /* ① 静水柱 */
   const dSolL=fricL*(solFac-1), dSolT=fricT*(solFac-1);   /* ② 颗粒相摩阻反馈 */
   const dBedL=fricL*(bedFac-1), dBedT=fricT*(bedFac-1);   /* ③ 床层几何回灌 */
@@ -11042,9 +11045,9 @@ function runCalc(fromUser){
   // 渲染（按流态自动：全部紊流取紊流口径，否则取层流口径）
   const ecdEng=((document.getElementById('ecdEngine')||{}).value)||'slit';
   const Eshow=(ecdEng==='ns')?EcdNS:Erec;
-  const fricShow=Math.max(0,Eshow-rhoBase/1000);
+  const fricShow=Math.max(0,Eshow-rhoUse/1000);
   let EshowC=Eshow+dEc+fricShow*(solFac-1)+fricShow*(bedFac-1);   /* ★ 含岩屑三项口径 */
-  if(Qoff) EshowC = rhoBase/1000;   /* ★ 停泵(Q=0)：含屑 ECD = 静止井底 ECD（用户要求，封住千万级发散） */
+  if(Qoff) EshowC = rhoUse/1000;   /* ★ 停泵(Q=0)：含屑 ECD = 环空等效静密度 ESD（用户要求，封住千万级发散） */
   document.getElementById('kECD').textContent=Eshow.toFixed(3);
   document.getElementById('kECDc').textContent=EshowC.toFixed(3);
   document.getElementById('kCut').textContent=cutT.toFixed(1);
@@ -11054,7 +11057,7 @@ function runCalc(fromUser){
   document.getElementById('kTVD').textContent=TVD.toFixed(0);
   document.getElementById('kClos').textContent=tr?tr.closure.toFixed(0):'–';
   document.getElementById('kInc').textContent=tr?tr.incBot.toFixed(1):'0.0';
-  const rhoStat=rhoBase/1000;               // 静态密度 = 井底密度(温压修正后, 不循环)
+  const rhoStat=rhoUse/1000;               // 静态密度 = 环空等效静密度 ESD = 静压/(g·TVD) = 柱内平均密度(温压修正后, 不循环)
   document.getElementById('kStat').textContent=rhoStat.toFixed(3);
   document.getElementById('kDyn').textContent=EshowC.toFixed(3);   // 动态密度 = ECD(含岩屑·三项)
   /* ★ 井名回显（wellName 同时用于导出报告命名/标题） */
@@ -11326,6 +11329,9 @@ function runCalc(fromUser){
        <tr><td colspan="3" style="text-align:left;background:#eef2f7"><b>★ 物理下限校验（Cut Time 不可能快于泥浆）</b></td></tr>
        <tr><td><b>泥浆上返时间 t<sub>lag</sub></b></td><td><b>${lagMin.toFixed(1)} min</b></td>
          <td>t<sub>lag</sub>=Σ ds/V<sub>ann</sub>=<b>环空总容积 ÷ 排量</b>，即现场说的<b>迟到时间</b>。本井：逐段积分环空容积 <b>${(lagS*Q).toFixed(1)} m³</b> ÷ <b>${(Q*1000).toFixed(1)} L/s</b> = <b>${lagMin.toFixed(1)} min</b>（含井径剖面与钻具逐段外径；MD ${MD.toFixed(0)} m）。岩屑靠泥浆携带 ⇒ v<sub>p</sub>≤V<sub>ann</sub> ⇒ <b>Cut Time ≥ t<sub>lag</sub> 恒成立</b></td></tr>
+       <tr><td>★ 温压密度修正<br><span style="font-size:10.5px;color:var(--sub)">ρ₀ → ρ_bh → ESD</span></td>
+         <td>${ptd.on?('ρ₀ '+rho.toFixed(0)+' → ρ<sub>bh</sub> <b>'+ptd.rhoBh.toFixed(0)+'</b> kg/m³（'+(ptd.rhoBh/1000).toFixed(3)+' SG）<br>ESD=<b>'+ptd.rhoAvg.toFixed(0)+'</b> kg/m³（<b>'+(ptd.rhoAvg/1000).toFixed(3)+' SG</b>）'):('未启用 → 全柱按 ρ₀ = '+rho.toFixed(0)+' kg/m³')}</td>
+         <td>${ptd.on?('井底 <b>'+ptd.Tbh.toFixed(0)+' ℃</b> / <b>'+ptd.Pbh.toFixed(1)+' MPa</b>；压力压缩 <b>+'+(ptd.dCp).toFixed(1)+'</b>、温度膨胀 <b>'+(ptd.dCt).toFixed(1)+'</b> kg/m³，净 '+(ptd.rhoBh-rho>=0?'+':'')+(ptd.rhoBh-rho).toFixed(1)+' kg/m³。<br><b>停泵 ECD = ESD = 静压/(g·TVD) = 柱内平均密度 ρ_avg</b>（ρ<sub>bh</sub> 只是柱内最大值：压缩主导时 ρ<sub>avg</sub>&lt;ρ<sub>bh</sub>、热膨胀主导时反之）——旧版误用 ρ<sub>bh</sub> 报 ESD，本工况'+(ptd.rhoBh>ptd.rhoAvg?('系统性<b>高估 +'+((ptd.rhoBh-ptd.rhoAvg)/1000).toFixed(3)+' SG</b>'):('系统性<b>低估 '+((ptd.rhoBh-ptd.rhoAvg)/1000).toFixed(3)+' SG</b>'))+'。<br>★ 加重泥浆（重晶石/固相）不热胀冷缩 ⇒ 有效系数应按体积分数稀释：1.76 SG 油基泥浆约 <b>α_eff≈3.4e-4/℃、β_eff≈3.4e-4/MPa</b>，直接用纯液体预设（OBM 8.7e-4/5.88e-4）会<b>高估热膨胀</b>、把 ESD 压得偏低'):'TVD≤2500 m 且未勾选「启用温压密度修正」时全柱取地面密度；深井（TVD>2500）自动启用'}</td></tr>
        <tr><td><b>钻具串解析审计</b><br><span style="font-size:10.5px;color:var(--sub)">列序 ／ 方向 ／ 钻头剔除</span></td>
          <td style="color:${(bhi&&(!bhi.cover||!bhi.rows))?'var(--accent)':'var(--txt)'}">${bhi?((bhi.rows?bhi.mode+'<br>'+(bhi.reversed?'顶→底 <b>已反转</b>':'钻头→上 原序'):'<b style="color:var(--accent)">钻具表为空 → 已按 Ø127 mm 全长占位</b><br>')+'<br>'+bhi.rows+' 段 ／ 总长 '+bhi.total.toFixed(1)+' m'+(bhi.spare>0.05?(' ／ <b>入井 '+bhi.inhole.toFixed(1)+' m</b>（备用 '+bhi.spare.toFixed(1)+' m，未入井）'):'')+'<br>'+(bhi.bitN?('已剔除钻头 Ø'+bhi.bitOd+' ×'+bhi.bitN):'无钻头行')):'—'}</td>
          <td>★ 现场系统导出的钻具表常是「名称,外径,<b>内径,长度</b>」，而平台原生是「名称,外径,<b>长度,内径</b>」——<b>长度与内径互换</b>会让整串只剩 1/4，井深以上没有钻具，回落到末段（顶→底时正是 215.9 钻头）→ 造出 5 mm 假环空、V<sub>ann</sub> 8 m/s、迟到时间 22 min。<b>判据：整串总长必须 ≥ MD</b>（本井 ${MD.toFixed(0)} m）。钻头不参与环空（流体走喷嘴），已自动剔除并把长度并入首段。<b>总长 &gt; MD 时自动截断</b>：从钻头端累计满 MD 的部分入井参与计算，剩余为串顶备用（后续钻进接入），不参与本井环空/携岩。${(bhi&&!bhi.cover)?'<b style="color:var(--accent)">总长 &lt; MD → 请补全钻具表或核对井深</b>':''}</td></tr>
@@ -11845,7 +11851,7 @@ function runCalc(fromUser){
           mudType:gv2('cvMudType'), owr:gn2('cvOWR'), aw:gn2('cvAw'), seal:gn2('cvSeal'),
           Q:Q, aAnn:Aann,
           rhoc:(isFinite(rhoc)?(rhoc>100?rhoc:rhoc*1000):2600),
-          rhoMud:(isFinite(rhoBase)?rhoBase:1800),
+          rhoMud:(isFinite(rhoUse)?rhoUse:1800),   /* 与 ESD 同口径：柱内平均密度（温压修正后） */
           mu:(isFinite(PV)&&PV>0?PV/1000:0.05),
           pcSG:gn2('cvPc')||1.90,
           /* 漏失压力上限：优先取 ⑫-A2 模型剖面在井底的值（与 ⑫ 同口径），否则用 A 块手填常数 */
@@ -12051,13 +12057,13 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
     drawLiveFigs();
   }catch(e){ console.warn('[live]', e); }
 
-  drawECD(Eturb,Elam,drho*Cv/1000,rhoBase/1000);
+  drawECD(Eturb,Elam,drho*Cv/1000,rhoUse/1000);
   drawVel(plotLab,plotV);
   draw3D();
 
   /* ---- ★ 暴露结果给 ③ 多状态 ECD/起下钻（pane-trip），并触发其重算 ---- */
   window.__ctsResult = {
-    Dh:Dh, MD:MD, TVD:TVD, rho:rho, rhoBase:rhoBase, rhoUse:rhoUse,
+    Dh:Dh, MD:MD, TVD:TVD, rho:rho, rhoBase:rhoBase, rhoUse:rhoUse, ptd:ptd, Qoff:Qoff,
     Eshow:Eshow, EshowC:EshowC, dEc:dEc, dPl:dPl, dPt:dPt,
     PV:PV, YP:YP, gel10:gel10, gel10m:gel10m, gel30:gel30,
     vs:vs, vsTerm:vsTerm, cutT:cutT, secs:secs, tr:tr,
@@ -14790,7 +14796,7 @@ function runTrip(){
   if(!R || !(R.MD>0)){ return; }
 
   var MD=R.MD, TVD=Math.max(R.TVD,1), rhoBase=R.rhoBase, rhoUse=R.rhoUse;
-  var ESD=rhoBase/1000;                 /* 静态 ESD (SG) */
+  var ESD=rhoUse/1000;                 /* 静态 ESD = 环空等效静密度 = 静压/(g·TVD) = 柱内平均密度 (SG) */
   var Ecirc=R.Eshow;                    /* 循环 ECD 不含岩屑 */
   var Ecut =R.EshowC;                   /* 循环 ECD 含岩屑 */
   var PV=R.PV, YP=R.YP;                 /* Pa·s / Pa（② 六速反算） */
