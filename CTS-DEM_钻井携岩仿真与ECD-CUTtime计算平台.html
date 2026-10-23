@@ -10427,6 +10427,9 @@ function parseBHA(txt,MD){
   const total=out.reduce((a,b)=>a+b.len,0);
   parseBHA.info={rows:out.length,total:total,mode:mode,reversed:reversed,
     bitN:bits.length,bitOd:bits.length?bits[0].od:null,MD:MD,
+    /* ★ 入井长度 / 备用长度：钻具总长 > MD 时，从钻头端累计满 MD 即截断，
+       剩余（串的顶部，后续钻进接入）为备用，不参与本井环空/携岩计算 */
+    inhole:(MD>0?Math.min(total,MD):total), spare:(MD>0?Math.max(0,total-MD):0),
     cover:(MD>0&&total<MD*0.98)?false:true};
   return out;
 }
@@ -11324,8 +11327,8 @@ function runCalc(fromUser){
        <tr><td><b>泥浆上返时间 t<sub>lag</sub></b></td><td><b>${lagMin.toFixed(1)} min</b></td>
          <td>t<sub>lag</sub>=Σ ds/V<sub>ann</sub>=<b>环空总容积 ÷ 排量</b>，即现场说的<b>迟到时间</b>。本井：逐段积分环空容积 <b>${(lagS*Q).toFixed(1)} m³</b> ÷ <b>${(Q*1000).toFixed(1)} L/s</b> = <b>${lagMin.toFixed(1)} min</b>（含井径剖面与钻具逐段外径；MD ${MD.toFixed(0)} m）。岩屑靠泥浆携带 ⇒ v<sub>p</sub>≤V<sub>ann</sub> ⇒ <b>Cut Time ≥ t<sub>lag</sub> 恒成立</b></td></tr>
        <tr><td><b>钻具串解析审计</b><br><span style="font-size:10.5px;color:var(--sub)">列序 ／ 方向 ／ 钻头剔除</span></td>
-         <td style="color:${(bhi&&(!bhi.cover||!bhi.rows))?'var(--accent)':'var(--txt)'}">${bhi?((bhi.rows?bhi.mode+'<br>'+(bhi.reversed?'顶→底 <b>已反转</b>':'钻头→上 原序'):'<b style="color:var(--accent)">钻具表为空 → 已按 Ø127 mm 全长占位</b><br>')+'<br>'+bhi.rows+' 段 ／ 总长 '+bhi.total.toFixed(1)+' m<br>'+(bhi.bitN?('已剔除钻头 Ø'+bhi.bitOd+' ×'+bhi.bitN):'无钻头行')):'—'}</td>
-         <td>★ 现场系统导出的钻具表常是「名称,外径,<b>内径,长度</b>」，而平台原生是「名称,外径,<b>长度,内径</b>」——<b>长度与内径互换</b>会让整串只剩 1/4，井深以上没有钻具，回落到末段（顶→底时正是 215.9 钻头）→ 造出 5 mm 假环空、V<sub>ann</sub> 8 m/s、迟到时间 22 min。<b>判据：整串总长必须 ≥ MD</b>（本井 ${MD.toFixed(0)} m）。钻头不参与环空（流体走喷嘴），已自动剔除并把长度并入首段。${(bhi&&!bhi.cover)?'<b style="color:var(--accent)">总长 &lt; MD → 请补全钻具表或核对井深</b>':''}</td></tr>
+         <td style="color:${(bhi&&(!bhi.cover||!bhi.rows))?'var(--accent)':'var(--txt)'}">${bhi?((bhi.rows?bhi.mode+'<br>'+(bhi.reversed?'顶→底 <b>已反转</b>':'钻头→上 原序'):'<b style="color:var(--accent)">钻具表为空 → 已按 Ø127 mm 全长占位</b><br>')+'<br>'+bhi.rows+' 段 ／ 总长 '+bhi.total.toFixed(1)+' m'+(bhi.spare>0.05?(' ／ <b>入井 '+bhi.inhole.toFixed(1)+' m</b>（备用 '+bhi.spare.toFixed(1)+' m，未入井）'):'')+'<br>'+(bhi.bitN?('已剔除钻头 Ø'+bhi.bitOd+' ×'+bhi.bitN):'无钻头行')):'—'}</td>
+         <td>★ 现场系统导出的钻具表常是「名称,外径,<b>内径,长度</b>」，而平台原生是「名称,外径,<b>长度,内径</b>」——<b>长度与内径互换</b>会让整串只剩 1/4，井深以上没有钻具，回落到末段（顶→底时正是 215.9 钻头）→ 造出 5 mm 假环空、V<sub>ann</sub> 8 m/s、迟到时间 22 min。<b>判据：整串总长必须 ≥ MD</b>（本井 ${MD.toFixed(0)} m）。钻头不参与环空（流体走喷嘴），已自动剔除并把长度并入首段。<b>总长 &gt; MD 时自动截断</b>：从钻头端累计满 MD 的部分入井参与计算，剩余为串顶备用（后续钻进接入），不参与本井环空/携岩。${(bhi&&!bhi.cover)?'<b style="color:var(--accent)">总长 &lt; MD → 请补全钻具表或核对井深</b>':''}</td></tr>
        <tr><td>Cut Time / t<sub>lag</sub><br><span style="font-size:10.5px;color:var(--sub)">CFD-DEM ／ DFEM ／ N-S低边</span></td>
          <td style="color:${cutFloorOk?'var(--ok)':'var(--accent)'}">${(cutT_cfd/Math.max(lagMin,1e-9)).toFixed(2)} ／ ${(cutT_dfem/Math.max(lagMin,1e-9)).toFixed(2)} ／ ${(cutT_nsl/Math.max(lagMin,1e-9)).toFixed(2)}</td>
          <td>${cutFloorOk?'全部 ≥1 ✔ 物理自洽':'<b style="color:var(--accent)">存在 &lt;1 的口径 → 物理不可能</b>（旧版 v_p 会被床层折减抬到 V_ann 以上，现已按 min(V_eff·TR, V_ann) 钳制）'}</td></tr>
