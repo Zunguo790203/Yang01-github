@@ -16467,7 +16467,10 @@ renderSnap();
       var line = rows[i].trim();
       if (!line) continue;
       if (line.charAt(0) === '#') continue;
-      var c = line.split(/[,，\t]+/).map(function (x) { return x.trim(); });
+      /* ★ 必须用单分隔符 split（不能 /+）：连续逗号折叠会把「留空列」之后的值全部左移，
+       *   造成静默错位（如 q=13.3 被读成 CUT=13.3、rho=215.9 被读成 ROP）。
+       *   面板提示「留空则沿用①页当前值」，空列必须可表达。 */
+      var c = line.split(/[,，\t]/).map(function (x) { return x.trim(); });
       var md = parseFloat(c[0]);
       if (!(md > 0)) continue;
       pts.push({
@@ -16641,6 +16644,11 @@ renderSnap();
       : '';
 
     // 基础参数：①页最近一次计算的参数包（含井斜表/BHA/井径/流变，与 E5 校准同源）
+    // ★ 基准必须来自①页【当前表单】：用户可能改完输入没点「计算」。
+    //   直接拿 getLast() 会用到上一次计算的残留工况（甚至页面初始示例值），
+    //   反求出的 kFric/kSlip 会整体跑偏（实测：同输入在残留态下 kFric 5.67→2.91、
+    //   kSlip 1.83→20.58）。这里先按当前表单刷新一次 LAST 再读基准。
+    try { if (window.RUNX && window.RUNX.run) window.RUNX.run(); } catch (eRefresh) {}
     var baseParams = readBaseParams();
     var baseInc = (baseParams.survey && baseParams.survey.length) ? baseParams.survey[baseParams.survey.length - 1][1] : (baseParams.inc1 || baseParams.inc0 || 0);
 
