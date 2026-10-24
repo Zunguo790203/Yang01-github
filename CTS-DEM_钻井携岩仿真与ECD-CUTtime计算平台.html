@@ -2059,6 +2059,7 @@ html,body{max-width:100%;}
       <div class="grid g3">
         <div class="f"><label>井眼直径（钻头）<span class="u">mm</span></label><input id="i_holeSize" placeholder="215.9"><span class="d">本段裸眼实际直径</span></div>
         <div class="f"><label>井底井深 MD<span class="u">m</span></label><input id="i_md" placeholder="4500"></div>
+        <div class="f"><label>钻头位置（当前 MD）<span class="u">m</span></label><input id="i_bitPos" placeholder="留空 = 在井底"><span class="d">起钻/倒划眼/循环时填<b>实际钻头深度</b>：钻具总长与环空有效段到钻头为止，迟到时间/ECD/CUT 等全链路按钻头位置联动重算；井底以下不参与循环</span></div>
         <div class="f"><label>井底垂深 TVD<span class="u">m</span></label><input id="i_tvd" placeholder="留空 = 按 MD"><span class="d">留空则按垂直井近似</span></div>
         <div class="f"><label>钻杆外径<span class="u">mm</span></label><input id="i_pod" placeholder="127.0"></div>
         <div class="f"><label>钻杆内径<span class="u">mm</span></label><input id="i_pid" placeholder="108.6"><span class="d">钻具档案；ECD/CUTtime 走环空口径，不使用内径</span></div>
@@ -2423,12 +2424,18 @@ html,body{max-width:100%;}
       </span></span></div>
       <div class="row" style="grid-template-columns:1fr auto auto">
         <div class="grp">
-          <label>实测点（每行一条：md,ecdSG,cutMin,立压MPa,qLps,rop,rhoSG,dcMm）</label>
+          <label>实测点（每行一条：md, ecdSG, cutMin, 立压MPa, qLps, rop, rhoSG, dcMm [, buTimeMin]）</label>
           <textarea id="calibData" rows="9" style="width:100%;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.5">1800,1.72,68,18.6,24,9,1.63,5.0
 2600,1.71,83,20.1,23,7,1.63,4.5
 3400,1.69,103,21.8,22,6,1.64,4.0
 4200,1.67,127,23.5,21,5,1.64,3.5
 5000,1.66,159,25.4,20,4,1.65,3.0</textarea>
+          <div class="d" style="margin-top:4px">
+            8 列固定：<b>md, ECD(SG,含屑), CUT time(min,岩屑返出), 立压(MPa), 排量(L/s), ROP(m/h), 密度(SG), 岩屑粒径(mm)</b>；
+            留空的列保留逗号（如 <code>4700,1.87,,,30.27,4.83,1.76,3.0</code>）即沿用①页当前值。
+            第 9 列（可选）填日报 <b>BU Time（泥浆迟到 min）</b>做 lag 校验，不参与反求。
+            ROP 填 <b>0</b> = 循环/通井无岩屑工况。<b>BU Time 不是 CUT time</b>，勿填入第 3 列。
+          </div>
         </div>
         <div class="grp" style="align-self:end">
           <label>基准井斜 inc (°)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">基准井斜</span>仅当①页<b>没有井斜表</b>时用作 TVD 折算的单一斜率；有井斜表时逐段积分、本值不参与计算。斜井/水平井环空摩阻占比大，kFric 才反求得出来。</span></span></label>
@@ -3267,6 +3274,8 @@ html,body{max-width:100%;}
       shoeMd: null,           // m 技术套管鞋深度（= 上一开次固井深度；选填）
       tvd: null,              // m 井底垂深 TVD（留空 = 按 MD 近似 = MD）
       md: 4500,               // m 井底井深 MD
+      bitPos: null,           // m 钻头位置 MD（留空/0 = 在井底；起钻/倒划眼时 < md，
+                              //   钻具总长与环空有效段到钻头为止，迟到/ECD/CUT 全链路联动）
       _pipe: {
         od: 127.0, id: 108.6, tjo: 168.3, tji: 82.6, tjl: 0.60, sl: 9.60
       },                      // 钻杆规格（默认 5″ 19.5 lb/ft）
@@ -3415,6 +3424,27 @@ html,body{max-width:100%;}
     out.md = md; out.tvd = tvd; out.holeSize = holeSize;
     out.dcIn = dcMm * IN;
 
+    /* ---- ★ 钻头位置（2026-10-24：起钻/倒划眼/循环时钻头不在井底）----
+       循环路径的「底」不是井底而是钻头：
+         · 钻具总长 = 钻头位置（BHA 坐在钻头处，钻杆补齐到井口）；
+         · 环空有效段 = 地表 → 钻头，井底以下为不循环死区（不贡献容积/摩阻/携屑）；
+         · 迟到时间 = 环空有效容积 ÷ 排量（本程序以 Σ 段长/返速 积分，二者等价）；
+         · ECD / CUT / VF / η 全部由 segs 积分而来 ⇒ 钻头位置一变全链路联动。
+       留空 = 在井底，回归原口径（逐位一致）。 */
+    var bitPos = nz(p.bitPos);
+    if (bitPos === null || !(bitPos > 0)) bitPos = md;
+    if (bitPos > md + 1e-6) {
+      out.warn.push('钻头位置 ' + r(bitPos, 1) + ' m 大于井底井深 ' + r(md, 1) + ' m —— 已按井底处理。');
+      bitPos = md;
+    }
+    out.bitPos = bitPos;
+    out.bitAboveBottom = bitPos < md - 0.5;
+    if (out.bitAboveBottom) {
+      out.warn.push('起钻/倒划眼/循环工况：钻头在 ' + r(bitPos, 1) + ' m（井底 ' + r(md, 1) + ' m）—— '
+        + '钻具总长与环空有效段到钻头位置为止，井底以下不参与循环；'
+        + '迟到时间 / ECD / CUT 等已按钻头位置联动重算。');
+    }
+
     /* ---- 排量 ---- */
     var Q = nz(p.q);
     if (Q === null || !(Q > 0)) {
@@ -3549,8 +3579,9 @@ html,body{max-width:100%;}
 
     /* ---- 分段断点 ---- */
     var shoeMd = nz(p.shoeMd);
-    var bps = [0, md];
-    function push(v) { var x = num(v); if (isFinite(x) && x > 0 && x < md) bps.push(x); }
+    /* ★ 循环路径终点 = 钻头位置（不是井底）：井底以下不循环，不进入分段 */
+    var bps = [0, bitPos];
+    function push(v) { var x = num(v); if (isFinite(x) && x > 0 && x < bitPos) bps.push(x); }
     push(shoeMd);
     spts.forEach(function (s) { push(s[0]); });
     /* 钻杆分界：BHA 段长（简化——本程序只用一个钻杆规格 + BHA 概化） */
@@ -3601,10 +3632,11 @@ html,body{max-width:100%;}
     var bhaAcc = 0, bhaRanges = [];
     bha.forEach(function (seg) {
       var L = seg.len;
-      if (bhaAcc + L > md - 0.5) L = Math.max(0, md - 0.5 - bhaAcc);   // 不越过井口
+      /* ★ 钻具总长 = 钻头位置：BHA 坐在钻头处，向上排；超过则截断（不起过井口） */
+      if (bhaAcc + L > bitPos - 0.5) L = Math.max(0, bitPos - 0.5 - bhaAcc);
       if (!(L > 1e-6)) return;
-      seg._bot = md - bhaAcc;                 // 深端（靠井底）
-      seg._top = md - bhaAcc - L;             // 浅端
+      seg._bot = bitPos - bhaAcc;             // 深端（靠钻头）
+      seg._top = bitPos - bhaAcc - L;         // 浅端
       bhaAcc += L;
       bhaRanges.push({ name: seg.name, type: seg.type, od: seg.od, id: seg.id,
         tjo: seg.tjo, tjl: seg.tjl, mdTop: seg._top, mdBot: seg._bot, len: L });
@@ -3948,13 +3980,16 @@ html,body{max-width:100%;}
       return { tvd: tV, fric: fR, hydW: hW, hydC: hC };
     }
 
-    /* 深度点：井底 / 套管鞋 / 关注深度（升序） */
-    var deps = [{ k: 'bit', name: '井底（At Bit / At Bottom）', mdv: md }];
-    if (shoeMd !== null && shoeMd > 0.5 && shoeMd < md - 0.5) {
+    /* 深度点：钻头位置（= 循环路径底）/ 套管鞋 / 关注深度（升序）
+       ★ 起钻/倒划眼时「井底点」即钻头位置；低于钻头的鞋点/关注点不参与循环，剔除 */
+    var deps = [{ k: 'bit',
+      name: out.bitAboveBottom ? '钻头位置（At Bit，起钻/倒划眼）' : '井底（At Bit / At Bottom）',
+      mdv: bitPos }];
+    if (shoeMd !== null && shoeMd > 0.5 && shoeMd < bitPos - 0.5) {
       deps.push({ k: 'shoe', name: '套管鞋（At Shoe）', mdv: shoeMd });
     }
     var docMd = nz(p.ecdMd);
-    if (docMd !== null && docMd > 0 && docMd < md - 0.5) {
+    if (docMd !== null && docMd > 0 && docMd < bitPos - 0.5) {
       deps.push({ k: 'doc', name: '关注深度（Depth of Concern）', mdv: docMd });
     }
     deps.sort(function (a, b) { return a.mdv - b.mdv; });
@@ -4088,7 +4123,7 @@ html,body{max-width:100%;}
       dChoke: dCkBot * PPG                     // 回压
     };
     /* 反算用的中间量（供 ⑥ 卡逐项核对，全部为 SI 原值） */
-    var qBit = at(md);
+    var qBit = at(bitPos);   // ★ 循环路径底 = 钻头位置
     out.ecdDetail = {
       tvd: qBit.tvd, mw: rho, rhoc: rhoc, pbMPa: pbM,
       rhoAvg: rhoPure,
@@ -5243,7 +5278,7 @@ html,body{max-width:100%;}
    * ========================================================================== */
   var FIELD = {
     /* A 几何 */
-    i_holeSize: 'dia', i_md: 'len', i_tvd: 'len',
+    i_holeSize: 'dia', i_md: 'len', i_tvd: 'len', i_bitPos: 'len',
     i_pod: 'dia', i_pid: 'dia', i_ptjo: 'dia', i_ptjl: 'len', i_psl: 'len',
     i_inc0: 'deg', i_inc1: 'deg',
     /* B 排量与流变 */
@@ -5274,7 +5309,7 @@ html,body{max-width:100%;}
    *   ★ 纯文字提示（「留空 = 按泵参数」「留空 = 按体系预设」…）不在表内，保持原样。
    * ========================================================================== */
   var PH = {
-    i_holeSize: 215.9, i_md: 4500, i_pod: 127.0, i_pid: 108.6,
+    i_holeSize: 215.9, i_md: 4500, i_bitPos: 4500, i_pod: 127.0, i_pid: 108.6,
     i_ptjo: 168.3, i_ptjl: 0.60, i_psl: 9.60,
     i_inc0: 0, i_inc1: 0,
     i_pumpD: 150, i_pumpSpm: 60, i_rho: 1.65,
@@ -5314,6 +5349,9 @@ html,body{max-width:100%;}
     /* A 几何 */
     p.holeSize = gvu('i_holeSize');
     p.md = gvu('i_md');
+    /* ★ 钻头位置（起钻/倒划眼/循环工况）：留空 = 在井底。
+       原始值透传给内核，由 calc 统一裁决（空 → md；> md → 告警并钳位）。 */
+    p.bitPos = gvu('i_bitPos');
     p.tvd = gvu('i_tvd');
     p._pipe = {
       od: gvu('i_pod'), id: gvu('i_pid'),
@@ -5388,7 +5426,7 @@ html,body{max-width:100%;}
       var d = UT.toDispClean(fieldKind(id), baseV);
       sv(id, d);
     }
-    svu('i_holeSize', p.holeSize); svu('i_md', p.md); svu('i_tvd', p.tvd);
+    svu('i_holeSize', p.holeSize); svu('i_md', p.md); svu('i_bitPos', p.bitPos); svu('i_tvd', p.tvd);
     if (p._pipe) {
       svu('i_pod', p._pipe.od); svu('i_pid', p._pipe.id);
       svu('i_ptjo', p._pipe.tjo); svu('i_ptjl', p._pipe.tjl); svu('i_psl', p._pipe.sl);
@@ -5835,14 +5873,22 @@ html,body{max-width:100%;}
     var cutCls = res.cutTh === null ? '' : (res.cutTh > 6 ? 'warn' : 'ok');
     var h = '';
     h += '<div class="res" style="grid-template-columns:repeat(auto-fit,minmax(175px,1fr))">';
-    /* 主指标：井底 ECD */
-    h += '<div class="kpi hero"><div class="k">井底 ECD（含岩屑）<span class="pill info">主指标</span></div>'
+    /* 主指标：井底 ECD（起钻/倒划眼时 = 钻头位置 ECD） */
+    var bitLbl = res.bitAboveBottom ? '钻头位置 ECD（含岩屑）' : '井底 ECD（含岩屑）';
+    h += '<div class="kpi hero"><div class="k">' + bitLbl + '<span class="pill info">主指标</span></div>'
       + '<div class="v">' + dv('ecd', res.ecdBit, 3) + '<small>' + lb('ecd') + '</small></div>'
       /* ★ 默认只给当前单位制；勾选「对照单位」才补一行另一单位制的等值 */
       + '<div class="s">' + (U.altOn() ? '= ' + UT.alt('ecd', res.ecdBit, 4) + '<br>' : '')
       + 'MW ' + dv('ecd', mw, 3) + ' + Δ ' + dv('ecd', dEcd, 3) + ' ' + lb('ecd') + '</div></div>';
+    /* ★ 起钻/倒划眼工况：钻头不在井底 —— 明示钻头位置与联动口径 */
+    if (res.bitAboveBottom) {
+      h += '<div class="kpi"><div class="k">钻头位置（At Bit）</div>'
+        + '<div class="v">' + fin(res.bitPos, 0) + '<small>m</small></div>'
+        + '<div class="s">井底 ' + fin(res.md, 0) + ' m；井底以下不循环<br>'
+        + '钻具总长 / 环空容积 / 迟到<br>均按钻头位置联动重算</div></div>';
+    }
     /* ECD 无岩屑 */
-    h += '<div class="kpi"><div class="k">井底 ECD（不含岩屑）</div>'
+    h += '<div class="kpi"><div class="k">' + (res.bitAboveBottom ? '钻头位置' : '井底') + ' ECD（不含岩屑）</div>'
       + '<div class="v">' + dv('ecd', res.ecdBitNoCut, 3) + '<small>' + lb('ecd') + '</small></div>'
       + '<div class="s">岩屑贡献 ' + dv('ecd', res.ecdBit - res.ecdBitNoCut, 4) + ' ' + lb('ecd') + '</div></div>';
     /* CUT time —— ★ 2026-10-21：主数值改回 min，与「泥浆迟到」同单位，
@@ -5924,7 +5970,8 @@ html,body{max-width:100%;}
 
   /* ---------------- ③ CUT time 明细 ---------------- */
   function secCut(res) {
-    var h = '<div class="sec-t">CUT time 构成（岩屑从井底被携带到井口的总运移时间）</div>';
+    var h = '<div class="sec-t">CUT time 构成（岩屑从' + (res.bitAboveBottom ? '钻头位置' : '井底')
+    + '被携带到井口的总运移时间）</div>';
     if (res.cutTh === null) {
       h += '<div class="note w">有井段的<b>岩屑净上行速度 ≤ 0</b>（该段岩屑不上返）→ 按 DFG 定义该段不计入，'
         + 'CUT time 无法给出有限值。这与 DFG 报告里 <b>Hole Cleaning Time = 0 时 CUT time = 0.00 h</b> 同源。'
@@ -5937,7 +5984,7 @@ html,body{max-width:100%;}
       + '<small>min</small></div><div class="s">= ' + fin(res.cutTh, 2) + ' h</div></div>';
     h += '<div class="kpi"><div class="k">泥浆迟到（物理下限）</div><div class="v">' + fin(res.lagT, 1)
       + '<small>min</small></div><div class="s">= ' + fin(res.lagT / 60, 2)
-      + ' h<br>环空总容积 ÷ 排量</div></div>';
+      + ' h<br>环空总容积 ÷ 排量' + (res.bitAboveBottom ? '<br>环空有效段 = 地表→钻头 ' + fin(res.bitPos, 0) + ' m' : '') + '</div></div>';
     h += '<div class="kpi"><div class="k">滑移滞后</div><div class="v">' + fin(res.climb, 1)
       + '<small>min</small></div><div class="s">= CUT − 迟到 ＝ ' + fin(res.cutT / Math.max(res.lagT, 1e-9), 2)
       + ' 倍</div></div>';
@@ -6150,7 +6197,8 @@ html,body{max-width:100%;}
   /* ---------------- ⑦ 分段明细表 ---------------- */
   function secSegTable(res) {
     if (!res.segs || !res.segs.length) return '';
-    var h = '<div class="sec-t">沿井深逐段明细（' + res.segN + ' 段）</div>';
+    var h = '<div class="sec-t">沿井深逐段明细（' + res.segN + ' 段'
+    + (res.bitAboveBottom ? '，循环路径 0 → 钻头 ' + fin(res.bitPos, 0) + ' m；井底以下不循环' : '') + '）</div>';
     h += '<div class="tw"><table><thead><tr>'
       + '<th>#</th><th>MD 区间<br><span style="font-weight:400">' + lb('len') + '</span></th>'
       + '<th>井斜<br><span style="font-weight:400">°</span></th>'
@@ -15549,6 +15597,9 @@ function pushToEcd(){
     var obj={};
     if(num(p.Dhole))  obj.holeSize=num(p.Dhole);
     if(num(p.MD))     obj.md=num(p.MD);
+    /* DFG 报告是「钻头在该报告深度」的快照 ⇒ 钻头位置同步置为报告 MD，
+       避免①页残留一个起钻中的钻头位置把导入场景的迟到/ECD 带偏 */
+    if(num(p.MD))     obj.bitPos=num(p.MD);
     if(ti && ti.tvd>0) obj.tvd=Math.round(ti.tvd*100)/100;   /* TVD 只用于显示/校核，取 2 位小数 */
     if(ti){ obj.inc0=ti.inc0; obj.inc1=ti.incBot;
             if(ti.pts && ti.pts.length>1){ obj.traj='table'; obj.survey=ti.pts; } }
@@ -16473,15 +16524,34 @@ renderSnap();
       var c = line.split(/[,，\t]/).map(function (x) { return x.trim(); });
       var md = parseFloat(c[0]);
       if (!(md > 0)) continue;
+      /* ★ 列数校验：格式固定 8 列，第 9 列（BU Time）可选。
+       *   多打/漏打逗号会让后续列全部静默左移（q 被读成 CUT、rho 被读成 ROP），
+       *   这类错位不报错但反求结果全错 —— 这里显式记录 colWarn，报告里逐行提示。 */
+      var colWarn = (c.length < 8 || c.length > 9)
+        ? '该行列数 = ' + c.length + '（应为 8 列：md, ECD, CUT, 立压, q, ROP, ρ, dc；第 9 列 BU Time 可选）'
+          + ' —— 请检查逗号数量（留空列也要保留逗号）'
+        : '';
+      /* 第 9 列 BU Time 有效性：现场 BU Time 30~300 min；<8 min 几乎一定是
+       *   「8 列格式多打一个逗号」把岩屑粒径 dc（3~6 mm）错位成了 BU Time。 */
+      var lagV = parseFloat(c[8]);
+      if (!isFinite(lagV) || lagV <= 0) lagV = 0;
+      if (lagV > 0 && lagV < 8) {
+        colWarn += (colWarn ? '；' : '') + '第 9 列 BU Time = ' + lagV
+          + ' min 过小（现场 30~300 min）—— 疑似多打一个逗号把岩屑粒径读成了 BU Time，该列已忽略';
+        lagV = 0;
+      }
       pts.push({
         md: md,
         ecd: parseFloat(c[1]) || 0,        // 实测 ECD (SG, with cuttings)
         cut: parseFloat(c[2]) || 0,        // 实测 CUT time (min) —— 岩屑返出时间，≠ 泥浆迟到时间
         spp: parseFloat(c[3]) || 0,        // 实测立压 (MPa)
         q:   parseFloat(c[4]) || 0,        // 排量 (L/s)
-        rop: parseFloat(c[5]) || 0,        // ROP (m/h)
+        rop: parseFloat(c[5]) || 0,        // ROP (m/h)；0 = 无岩屑工况（循环/通井）
         rho: parseFloat(c[6]) || 0,        // 泥浆密度 (SG)
-        dc:  parseFloat(c[7]) || 0         // 岩屑粒径 (mm)
+        dc:  parseFloat(c[7]) || 0,        // 岩屑粒径 (mm)
+        lag: lagV,                         // 第 9 列（可选）：日报 BU Time（泥浆迟到 min）——仅校验，不反求
+        raw: c,                            // 原始列串（区分「显式填 0」与「留空沿用①页」）
+        colWarn: colWarn
       });
     }
     pts.sort(function (a, b) { return a.md - b.md; });
@@ -16518,16 +16588,21 @@ renderSnap();
    *     原实现固定用 ecdBitNoCut（clean），与现场口径不一致，会把岩屑贡献算进摩阻。 */
   function invertKfric(baseParams, targetEcdSG) {
     var E = window.ECDKit;
+    var calcMsg = '';
     function run(ov) {
       var pp = {};
       for (var k in baseParams) if (baseParams.hasOwnProperty(k)) pp[k] = baseParams[k];
       for (var k2 in ov) if (ov.hasOwnProperty(k2)) pp[k2] = ov[k2];
       var o = E.calc(pp);
+      if (o && !o.ok && o.msg) calcMsg = o.msg;   // 透传内核失败原因（如「请填写钻井液密度 ρ」⇒ 列错位）
       return o && o.ok ? o : null;
     }
     var o1 = run({ kFric: 1 });
     var o0 = run({ kFric: 1e-6 });   // ★ 用 1e-6 逼近「无摩阻」（0 会被内核回退成 1）
-    if (!o1 || !o0) return { kf: null, why: '基准工况无法计算' };
+    if (!o1 || !o0) return { kf: null, why: '基准工况无法计算' + (calcMsg ? '（' + calcMsg + '）' : '') };
+    /* 顺带取模型迟到 lagT（与 kFric 基本无关，迟到由容积/排量决定），
+     *   供④面板第 9 列（日报 BU Time）做口径校验。 */
+    var lagOut = (o1.lagT !== null && isFinite(o1.lagT)) ? o1.lagT : null;
     var e1 = isFinite(o1.ecdBit) ? o1.ecdBit : o1.ecdBitNoCut;
     var e0 = isFinite(o0.ecdBit) ? o0.ecdBit : o0.ecdBitNoCut;
     var den = e1 - e0;
@@ -16535,8 +16610,8 @@ renderSnap();
     // 目标 ECD 从 SG 转 ppg
     var targetPpg = targetEcdSG * E.PPG;
     var k = (targetPpg - e0) / den;
-    if (!(isFinite(k) && k > 0 && k < 100)) return { kf: null, why: '反解 kFric 超出合理区间' };
-    return { kf: k, why: null };
+    if (!(isFinite(k) && k > 0 && k < 100)) return { kf: null, why: '反解 kFric 超出合理区间', lag: lagOut };
+    return { kf: k, why: null, lag: lagOut };
   }
 
   /* ---- 单点反求 kSlip（携岩通道）----
@@ -16564,6 +16639,8 @@ renderSnap();
         return { k: null, why: '目标 ' + (targetH * 60).toFixed(0) + ' min 低于该点迟到时间下限 '
           + fLo.lag.toFixed(0) + ' min —— 第 3 列请填 CUT time（岩屑返出时间），泥浆迟到时间填这里会反出偏小的 kSlip' };
       }
+      /* 疑似误填警告：目标 CUT 与模型 lag 过于接近（<1.6×）—— 日报 BU Time 填进第 3 列的典型特征 */
+      var warnLag = (fLo && fLo.lag !== null && targetH < 1.6 * fLo.lag / 60);
       if (fLo === null) return { k: null, why: 'kSlip=0.05 时岩屑已无法返出（返速过低）' };
       if (fLo.cut > targetH) return { k: null, why: '目标 CUT 比模型下限还短（滑落非主因）' };
       for (t = 0.2; t <= 64.0001 && guard < 40; t *= 1.6, guard++) {
@@ -16581,7 +16658,7 @@ renderSnap();
         if (fMid.cut >= targetH) hi = mid; else lo = mid;
         if (Math.abs(hi - lo) < 1e-4) break;
       }
-      return { k: mid, why: null };
+      return { k: mid, why: null, warnLag: warnLag };
     }
     return { solve: solve };
   }
@@ -16664,29 +16741,50 @@ renderSnap();
       // TVD：有井斜表逐段梯形积分（与①页口径一致）；否则按井底 TVD/MD 比例；再否则 cos(基准井斜)
       var tvd = tvdAt(baseParams.survey, pt.md, baseParams.tvd, baseParams.md, baseInc);
       // 局部工况覆盖
+      // ★ 用 raw 列串非空判断（而非 >0）：显式填 0 必须能表达 —— ROP=0 表示
+      //   「循环/通井、无岩屑产生」工况，此时 ECD 增量只来自摩阻，与钻进工况不同口径。
+      //   旧实现 pt.rop>0 才覆盖 ⇒ 填 0 会被①页基准 ROP 顶掉，ROP=0 的日报行反求失真。
       var local = {};
-      if (pt.q > 0) local.q = pt.q;
-      if (pt.rop > 0) local.rop = pt.rop;
-      if (pt.rho > 0) local.rho = pt.rho;
-      if (pt.dc > 0) local.dc = pt.dc;
+      if (pt.raw) {
+        if (pt.raw[4] !== '') local.q = pt.q;
+        if (pt.raw[5] !== '') local.rop = pt.rop;
+        if (pt.raw[6] !== '') local.rho = pt.rho;
+        if (pt.raw[7] !== '') local.dc = pt.dc;
+      } else {
+        if (pt.q > 0) local.q = pt.q;
+        if (pt.rop > 0) local.rop = pt.rop;
+        if (pt.rho > 0) local.rho = pt.rho;
+        if (pt.dc > 0) local.dc = pt.dc;
+      }
       // 合并进 baseParams 副本
       var pp = {};
       for (var k in baseParams) if (baseParams.hasOwnProperty(k)) pp[k] = baseParams[k];
       for (var k2 in local) if (local.hasOwnProperty(k2)) pp[k2] = local[k2];
       pp.md = pt.md; pp.tvd = tvd;
+      /* ★ 实测点记录的是「当时钻头所在深度」⇒ 该点循环路径底 = pt.md，
+         不受①页钻头位置输入影响（标定点几乎全是钻进工况，钻头即在该深度）。 */
+      pp.bitPos = pt.md;
 
       var kf = null, ks = null, kfWhy = '', ksWhy = '';
       // 摩阻通道（with-cuttings 口径，与现场实测 ECD 一致）
+      var kfLag = null;
       if (pt.ecd > 0) {
         var inv = invertKfric(pp, pt.ecd);
         if (inv.kf !== null) kf = inv.kf; else kfWhy = inv.why || '摩阻不可辨识';
+        kfLag = (inv.lag !== undefined) ? inv.lag : null;
       }
       // 携岩通道（CUT 反求 kSlip；用已求出的 kf 保证耦合一致）
       if (pt.cut > 0) {
         var cutH = pt.cut / 60;   // min → h
         var inv2 = invertKslip(pp, null);
         var r = inv2.solve(cutH, (kf !== null ? kf : null));
-        if (r.k !== null) ks = r.k; else ksWhy = r.why;
+        if (r.k !== null) {
+          ks = r.k;
+          if (r.warnLag) {
+            ksWhy = '⚠ 目标 CUT 与模型 lag 过于接近（<1.6×）—— 疑似把日报 BU Time（泥浆迟到）当成 CUT 填第 3 列，'
+              + '此 kSlip 偏小、不可信；CUT time 请用示踪剂/岩屑返出实测值';
+          }
+        } else ksWhy = r.why;
       }
       mdVals.push(pt.md);
       kfVals.push(kf);
@@ -16694,7 +16792,8 @@ renderSnap();
 
       rows.push({
         md: pt.md, ecd: pt.ecd, cut: pt.cut, kf: kf, ks: ks,
-        kfWhy: kfWhy, ksWhy: ksWhy, bucket: assign[i]
+        kfWhy: kfWhy, ksWhy: ksWhy, bucket: assign[i],
+        lag: kfLag, bu: pt.lag, colWarn: pt.colWarn
       });
     }
 
@@ -16717,6 +16816,8 @@ renderSnap();
     }
 
     // 生成报告表格
+    var hasLag = false;
+    for (var hl = 0; hl < rows.length; hl++) if (rows[hl].bu > 0) { hasLag = true; break; }
     var html = '<table style="border-collapse:collapse;width:100%;font-size:12px">';
     html += '<tr style="background:var(--bg2);color:var(--tx2)">';
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">井深 MD (m)</th>';
@@ -16724,10 +16825,12 @@ renderSnap();
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">实测 CUT (min)</th>';
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">反求 kFric</th>';
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">反求 kSlip</th>';
+    if (hasLag) html += '<th style="padding:6px;border-bottom:1px solid var(--line)">lag 校验（BU Time, min）</th>';
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">备注</th></tr>';
     for (var h = 0; h < rows.length; h++) {
       var rw = rows[h];
       var note = (demoFlags[h] ? '<span style="color:var(--bad)" title="该行与内置演示数据一致">示例数据</span>　' : '')
+        + (rw.colWarn ? '<span style="color:var(--bad)">' + esc(rw.colWarn) + '</span>　' : '')
         + ((rw.kfWhy || rw.ksWhy) ? esc(rw.kfWhy || rw.ksWhy) : '<span style="color:var(--ok)">✓</span>');
       html += '<tr>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + rw.md + '</td>';
@@ -16735,16 +16838,49 @@ renderSnap();
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.cut > 0 ? rw.cut.toFixed(1) : '–') + '</td>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.kf !== null ? rd(rw.kf, 3) : '–') + '</td>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.ks !== null ? rd(rw.ks, 3) : '–') + '</td>';
+      if (hasLag) {
+        var lagCell = '–';
+        if (rw.bu > 0 && rw.lag !== null && isFinite(rw.lag)) {
+          var dev = 100 * (rw.lag - rw.bu) / rw.bu;
+          var col = Math.abs(dev) < 10 ? 'var(--ok)' : (Math.abs(dev) < 20 ? 'var(--wn)' : 'var(--bad)');
+          lagCell = '模型 ' + rw.lag.toFixed(1) + ' vs BU ' + rw.bu.toFixed(1)
+            + ' → <span style="color:' + col + '">' + (dev >= 0 ? '+' : '') + dev.toFixed(1) + '%</span>';
+        } else if (rw.bu > 0) {
+          lagCell = 'BU ' + rw.bu.toFixed(1) + '（模型 lag 不可用）';
+        }
+        html += '<td style="padding:5px;border-bottom:1px solid var(--line);font-size:11px">' + lagCell + '</td>';
+      }
       html += '<td style="padding:5px;border-bottom:1px solid var(--line);font-size:11px">' + note + '</td>';
       html += '</tr>';
     }
     html += '</table>';
+    if (hasLag) {
+      html += '<div class="note" style="margin-top:6px;font-size:11px">'
+        + '<b>lag 校验口径：</b>第 9 列填日报 <b>BU Time（Bottom Up，泥浆从井底返到地面的迟到时间，min）</b>，'
+        + '与模型计算的循环 lagT 对比（偏差 = 容积/排量口径差，不参与 kFric/kSlip 反求）。'
+        + '<br>⚠ <b>BU Time 不是 CUT time</b>（岩屑返出时间）—— CUT ≥ lag 恒成立，把 BU Time 填进第 3 列'
+        + '会反求出偏小的 kSlip；程序在第 3 列目标接近模型 lag 时会提示疑似误填。</div>';
+    }
 
     // 摘要
     var nKf = kfVals.filter(function(x){return x!==null;}).length;
     var nKs = ksVals.filter(function(x){return x!==null;}).length;
+    var lagTxt = '';
+    if (hasLag) {
+      var ldevs = [];
+      for (var li = 0; li < rows.length; li++) {
+        if (rows[li].bu > 0 && rows[li].lag !== null && isFinite(rows[li].lag)) {
+          ldevs.push(100 * (rows[li].lag - rows[li].bu) / rows[li].bu);
+        }
+      }
+      if (ldevs.length) {
+        var lsum = ldevs.reduce(function (a, b) { return a + b; }, 0) / ldevs.length;
+        lagTxt = '；lag 校验 ' + ldevs.length + ' 点平均偏差 ' + (lsum >= 0 ? '+' : '') + lsum.toFixed(1)
+          + '%（模型 vs 日报 BU Time）';
+      }
+    }
     summary.textContent = (demoWarn ? '⚠ 含 ' + demoN + ' 行演示数据（标定结果不可用）　' : '')
-      + '共 ' + pts.length + ' 个实测点 → ' + nb + ' 桶；成功反求 kFric ' + nKf + ' 点、kSlip ' + nKs + ' 点';
+      + '共 ' + pts.length + ' 个实测点 → ' + nb + ' 桶；成功反求 kFric ' + nKf + ' 点、kSlip ' + nKs + ' 点' + lagTxt;
 
     /* ---- 全井中位数 + 写回 E5 闭环（"随钻纠偏"的出口）----
      *   反求结果只有写回①页 E5 校准系数（i_kFric/i_kSlip）并重算，才形成纠偏闭环；
