@@ -178,6 +178,25 @@ html,body{max-width:100%;}
 #pane-ecd .ualt.on{border-color:var(--ac);color:var(--ac)}
 
 
+/* 全站单位制切换 + 对照单位开关（放在平台头部，①②③④ 四个页签通用；
+   原 #pane-ecd 作用域内的同名样式保留兼容） */
+.plat-head .usysbar{display:flex;align-items:center;gap:10px;margin:0 0 9px;flex-wrap:wrap}
+.plat-head .usys{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:none}
+.plat-head .usys .ub{background:var(--bg3);color:var(--tx3);border:0;padding:7px 14px;font:13px var(--sans);
+  cursor:pointer;transition:.15s;white-space:nowrap;line-height:1.35}
+.plat-head .usys .ub+.ub{border-left:1px solid var(--line)}
+.plat-head .usys .ub:hover{color:var(--txt)}
+.plat-head .usys .ub.on{background:var(--accent);color:#ffffff;font-weight:600}
+.plat-head .ualt{display:inline-flex;align-items:center;gap:5px;flex:none;cursor:pointer;
+  border:1px solid var(--line);border-radius:8px;background:var(--bg3);color:var(--tx3);
+  padding:6px 10px;font:12.5px var(--sans);white-space:nowrap;transition:.15s}
+.plat-head .ualt:hover{color:var(--txt)}
+.plat-head .ualt input{margin:0;width:14px;height:14px;accent-color:var(--accent);cursor:pointer;flex:none}
+.plat-head .ualt.on{border-color:var(--accent);color:var(--accent)}
+.plat-head .ubadge{font-size:12px;color:var(--tx3);white-space:nowrap}
+.plat-head .ubadge b{color:var(--accent)}
+
+
 #pane-ecd .src-tag{display:inline-block;font-size:11px;font-family:var(--mono);padding:1px 6px;border-radius:5px;
   border:1px solid var(--line2);color:var(--tx3);margin-left:6px;vertical-align:middle}
 
@@ -1199,6 +1218,15 @@ html,body{max-width:100%;}
   <h1>CTS-DEM <b>钻井携岩仿真</b> 与 <b>ECD / CUTtime</b> 计算平台</h1>
   <div class="sub">① ECD·CUTtime（DFG 口径 · 多段钻具 · 瞬态携岩） &nbsp;|&nbsp;
     ② CTS-DEM 携岩仿真（★ CFD-DEM 岩屑运移内核 · TR 重矫正）</div>
+  <div class="usysbar">
+    <span class="usys" id="usys" title="全站统一单位制：①~④ 页的输入框、标签、结果表、曲线与 CSV 一起切换，不会出现半套英制半套公制">
+      <button class="ub" type="button" data-sys="si">公制 SI</button><button class="ub" type="button" data-sys="imp">英制 API</button>
+    </span>
+    <label class="ualt" id="ualt" title="默认只显示一种单位制；勾选后结果与 CSV 额外附上另一单位制的换算值（对照用，不参与计算）">
+      <input type="checkbox" id="i_usysAlt">显示对照单位
+    </label>
+    <span class="ubadge" id="ubadge"></span>
+  </div>
   <div class="tabbar">
     <button id="tab-cts" class="on" onclick="switchTab('cts')">② CTS-DEM 携岩仿真</button>
     <button id="tab-ecd" onclick="switchTab('ecd')">① ECD / CUTtime 计算</button>
@@ -1223,29 +1251,29 @@ html,body{max-width:100%;}
     <h2>① 基础参数 INPUT</h2>
     <div class="gt">几何 / 井身</div>
     <div class="row">
-      <div class="grp"><label>标称井径 D_hole (mm)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">标称井径（钻头/设计井径）</span>即<b>钻头直径</b>或设计井径，是全井的<b>基准值</b>：① 井径剖面留空时全井按它计算；② 井径剖面只填了部分深度时，两端点以外按它之外最近的实测点外推（不回落标称值），仅当剖面完全为空才等于它；③ 钻头破岩面积 A<sub>bit</sub>=π/4·D² 用它。<br><b>注意：</b>实际井眼因水化膨胀（缩径）或崩落/冲蚀（大肚子）并不均匀 —— 请用下方<b>井径剖面</b>按实测井径逐点录入。</span></span></label><input id="Dhole" value="215.9"></div>
-      <div class="grp"><label>测量井深 MD (m)</label><input id="MD" value="4350"></div>
+      <div class="grp"><label>标称井径 D_hole <span class="u">mm</span></label><input id="Dhole" value="215.9"></div>
+      <div class="grp"><label>测量井深 MD <span class="u">m</span></label><input id="MD" value="4350"></div>
     </div>
     <div class="gt">井径剖面 CALIPER（可选 · 井径不均匀：大肚子 / 缩径）<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">为什么要填实测井径？</span>井径直接决定环空过流面积 <code>A=π/4·(D_h²−D_p²)</code>，而返速 <code>V=Q/A</code>：<br>· <b>大肚子（扩径）</b>：局部流速↓ → 携岩能力骤降 → 岩屑在扩径段沉降堆积（"大肚子沉砂"），但 ECD 略降；<br>· <b>缩径</b>：局部流速↑、环空摩阻↑ → <b>ECD 抬高</b>，同时是遇卡/憋泵的高风险点；<br>· 井眼清洁与 ECD 的"最危险段"往往就出现在这两类井段，用单一标称井径会把它平均掉、算不出来。<br><br><b>输入格式：</b>每行 <code>井深(m) 井径(mm)</code>，<b>只需填实测异常点</b>（如井径测井/随钻井径的起止与极值点），程序在相邻点间<b>线性插值</b>、剖面端点外取端点值。<br><b>留空</b> → 全井按标称井径计算（等效于均匀井眼）。</span></span></div>
     <textarea id="caliper" rows="4" placeholder="0 215.9&#10;1180 243&#10;1560 208&#10;3200 262&#10;4350 214"></textarea>
     <div class="frow"><input type="file" id="calFile" accept=".txt,.csv"><span class="note" style="margin:0">上传 .txt/.csv（两列：井深 井径mm）· 可只填异常段，留空=标称井径</span></div>
     <div class="gt">水力 HYDRAULICS</div>
     <div class="row">
-      <div class="grp"><label>排量 Q (L/s)</label><input id="Q" value="30"></div>
-      <div class="grp"><label>泥浆密度 ρ (SG)</label><input id="rho" value="1.8"></div>
+      <div class="grp"><label>排量 Q <span class="u">L/s</span></label><input id="Q" value="30"></div>
+      <div class="grp"><label>泥浆密度 ρ <span class="u">SG</span></label><input id="rho" value="1.8"></div>
     </div>
     <div class="row">
       <div class="grp"><label>喷嘴数量 n<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">钻头喷嘴 + 立压校核</span>填入<b>喷嘴数量、单喷嘴直径、马达压降、实测立压</b>后，下面会给出：<br>· 总流通面积 TFA、钻头压降、喷嘴流速、<b>水功率 HSI</b>、喷射冲击力；<br>· 立压分项账：<b>地面管汇 + 钻杆内 + 马达 + 钻头 + 环空 = 模型立压</b>，与实测立压对比；<br>· 若两者差 &gt;15%，自动<b>反算"实测立压对应的排量"</b>——这是判断"排量记错 / 还有 MWD·RSS 等未列入钻具表的压耗件 / 钻头泥包"最快的办法。<br>钻杆内压耗要内径，请在钻具表第 4 列填内径（可省略，省略时按 0.82×外径估）。</span></span></label><input id="nzN" value="6"></div>
-      <div class="grp"><label>单喷嘴直径 (mm)</label><input id="nzD" value="17.46"></div>
+      <div class="grp"><label>单喷嘴直径 <span class="u">mm</span></label><input id="nzD" value="17.46"></div>
     </div>
     <div class="row three">
-      <div class="grp"><label>螺杆压降（空载）ΔP<sub>mot</sub> (MPa)</label><input id="dPmot" value="4.2"></div>
-      <div class="grp"><label>其他工具压降 (MPa)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">其他工具压降</span>钻具表里只写了外径/长度，但有些工具本身就有压耗，不是普通管段：<br>· <b>MWD/LWD</b> 0.3~1.5 MPa（脉冲器节流 + 小内径）<br>· <b>水力振荡器</b> 2~4 MPa（阀口节流）——<b>本井无此工具</b><br>· <b>RSS 旋转导向</b> 1.5~3 MPa<br>· <b>回压凡尔/浮阀</b> 0.1~0.3 MPa<br>· <b>钻头泥包 / 井底不清洁</b> 等效 0.5~2 MPa<br>填进来，立压账才能对平。填 0 时模型会低估立压。</span></span></label><input id="dPoth" value="0"></div>
-      <div class="grp"><label>实测立压 SPP (MPa)</label><input id="spp" value="36.45"></div>
+      <div class="grp"><label>螺杆压降（空载）ΔP<sub>mot</sub> <span class="u">MPa</span></label><input id="dPmot" value="4.2"></div>
+      <div class="grp"><label>其他工具压降 <span class="u">MPa</span></label><input id="dPoth" value="0"></div>
+      <div class="grp"><label>实测立压 SPP <span class="u">MPa</span></label><input id="spp" value="36.45"></div>
     </div>
     <div class="row">
-      <div class="grp"><label>螺杆排量 q (L/rev)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">螺杆排量 q 与带载压降</span>螺杆压降不是常数：<b>提离井底（空载）时最小，钻压/扭矩上去近似线性增大</b>——<br><b>ΔP<sub>mot</sub> = 2π·T / q</b>　（T 扭矩 N·m，q 排量 m³/rev）<br>本井扭矩 12.83 kN·m 时：<br>· q=5.0 L/rev → ΔP≈16.1 MPa<br>· q=6.0 L/rev → ΔP≈13.4 MPa<br>· q=7.0 L/rev → ΔP≈11.5 MPa<br>· q=8.0 L/rev → ΔP≈10.1 MPa<br>所以「28 L/s 时压降 4.2 MPa」若是<b>提离井底</b>读的，钻进时的马达压降会远高于它，立压账必须用带载值。q 查螺杆铭牌；不确定时按 5~7 填。</span></span></label><input id="qMot" value="6"></div>
-      <div class="grp"><label>实测扭矩 (kN·m)</label><input id="torque" value="12.83"></div>
+      <div class="grp"><label>螺杆排量 q <span class="u">L/rev</span></label><input id="qMot" value="6"></div>
+      <div class="grp"><label>实测扭矩 <span class="u">kN·m</span></label><input id="torque" value="12.83"></div>
     </div>
     <div class="note" id="hydOut" style="margin:6px 0 2px;font-size:11.5px;line-height:1.7">—（填好上面两项后自动校核）</div>
     <div class="gt" style="margin-top:9px">钻井液体系 MUD SYSTEM<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">★ 钻井液体系（油基 / 合成基 / 水基）</span>体系不同，<b>同一个井、同一套 Fann 读数，算出的 ECD 与携岩结果都不一样</b>，因为它同时改变三件事：<br><b>① 温压密度效应（α 热膨胀 / β 压缩）</b>——油基与合成基的 α 约为水基的 <b>2 倍</b>（8.7~10.0 vs 4.5 ×10⁻⁴/℃）：井下升温后油基变稀更明显 → 静液柱压力与 ECD 降得更多；水基 α 小 → ECD 偏高。<br><b>② 流变温度敏感性（活化能 E<sub>a</sub>）</b>——<code>K<sub>eff</sub> = K·exp[E<sub>a</sub>/R·(1/T−1/T<sub>测</sub>)]</code>。水基聚合物浆的 E<sub>a</sub> 最大（随温度变稀最剧烈），油基最小。<br><b>③ Fann 测试温度</b>——油基/合成基标准 65 ℃，水基常 25 ℃；它决定温度修正的<b>基准点</b>。<br><b>选定体系后：</b>α、β、E<sub>a</sub>、测量温度会自动套用该体系典型值（仍可手改）。<b>密度 ρ 不会自动改写</b>——请填本井实测值（各体系典型密度仅作提示）。</span></span></div>
@@ -1264,8 +1292,8 @@ html,body{max-width:100%;}
       <span style="color:var(--warn)"><b>读结果时注意：</b>两个效应方向相反 —— 油基「静液柱降得多、摩阻降得少」，水基「静液柱降得少、摩阻降得多」，<b>最终的 ECD 可能部分抵消而接近</b>；<b>真正的差异要看「环空摩擦 ΔP」「井底静态密度」与「井底静压 P_bh」三行</b>（同一井况下油基与水基的环空摩擦可差 50% 以上）。合成基 α 最大 → ECD 最低，差异最直观。</span>
     </div>
     <div class="row">
-      <div class="grp"><label>钻时 ROP (m/h)</label><input id="ROP" value="8"></div>
-      <div class="grp"><label>转速 RPM<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">转速 RPM</span>影响：① ④卡<b>机械破床判定</b>（转速不足→岩屑床越积越厚）；② ⑪ N-S 低边耦合（钻具旋转把低边颗粒重新卷入主流）；③ 3D 粒子云螺旋速率与低边滞留压制。填实际转盘/顶驱转速。</span></span></label><input id="RPM" value="60"></div>
+      <div class="grp"><label>钻时 ROP <span class="u">m/h</span></label><input id="ROP" value="8"></div>
+      <div class="grp"><label>转速 RPM <span class="u">r/min</span></label><input id="RPM" value="60"></div>
     </div>
     <div class="gt">流变 RHEOLOGY (Fann 六速实测值)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">六速读数（现场实测，从高到低）</span>θ600/θ300/θ200/θ100/θ6/θ3 为 Fann 六速粘度计在对应转速下的<b>刻度盘读数</b>，必须按现场实测填写：<br>· <b>PV</b> = (θ600−θ300)×10⁻³ Pa·s（塑性粘度）；<br>· <b>YP</b> = (θ300−(θ600−θ300))×0.4788 Pa（动切力，Bingham 口径）；<br>· <b>n</b> = lg(θ600/θ300)/lg2（流性指数）；<br>· θ6/θ3 用于低剪切流性指数与触变性判别；<br>· θ200/θ100 用于 2·θ3−θ6 的<b>钻具/稳定器外径建议</b>（定向井建议 1.0~1.2×井径）。<br>当前本井实测：<b>112 / 72 / 52 / 32 / 9 / 7</b>（θ200=52、θ100=32、θ6=9、θ3=7）。</span></span></div>
     <!-- 六速：3 行 × 2 列（原先两个 .row.three 在窄视口会折成 4 行并留出两个空半格） -->
@@ -1288,9 +1316,9 @@ html,body{max-width:100%;}
       <div class="grp"><label>Gel 30分 (读数)</label><input id="gel30v" value="26" placeholder="例 26"></div>
     </div>
     <div class="row">
-      <div class="grp"><label>钻屑中值粒径 d<sub>50</sub> (mm)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">d<sub>50</sub> 中值粒径</span>主体颗粒（质量中值）的代表粒径，用于：⑤ CFD-DEM 运移比与 DFEM 井眼清洁、水平/大斜度段的临界返速与静切悬浮校核（该段颗粒被反复碾压细化后的实际粒径）。<br><b>现场实测填，勿套教科书值</b>：PDC 钻头剪切破岩成<b>片状/块状</b>，10~25 mm 很常见；<b>油基钻井液</b>抑制水化、岩屑保持完整 → 实测粒径明显大于水基。</span></span></label><input id="dp" value="12"></div>
-      <div class="grp"><label>钻屑最大粒径 D<sub>max</sub> (mm)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">D<sub>max</sub> 最大粒径</span>最粗颗粒尺寸，用于造斜/直井段的临界返速与静切力悬浮校核（颗粒刚脱离钻头、尚未碾压细化）。<br><b>沿井深细化模型：</b>直井/造斜段（井斜 ≤25°）取 D<sub>max</sub>；大斜度/水平段（井斜 ≥65°）取 d<sub>50</sub>；25°~65° 之间线性过渡 —— 程序按井斜自动取值。</span></span></label><input id="dpmax" value="25"></div>
-      <div class="grp"><label>岩屑密度 ρ_cut (SG)</label><input id="rhoc" value="2.6"></div>
+      <div class="grp"><label>钻屑中值粒径 d<sub>50</sub> <span class="u">mm</span></label><input id="dp" value="12"></div>
+      <div class="grp"><label>钻屑最大粒径 D<sub>max</sub> <span class="u">mm</span></label><input id="dpmax" value="25"></div>
+      <div class="grp"><label>岩屑密度 ρ_cut <span class="u">SG</span></label><input id="rhoc" value="2.6"></div>
     </div>
     <div class="gt" style="margin-top:9px">钻屑粒径 CUTTINGS SIZE<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">★ 钻屑粒径与沿井深细化</span><b>粒径按现场实测填，不要套教科书值：</b><b>PDC 钻头</b>实际产生 <b>10~25 mm</b> 的片状 / 块状岩屑很常见（PDC 以剪切方式破岩，成块而非成粉）；<b>牙轮钻头</b>以压碎/剪切破岩，粉细颗粒偏多但重复破碎后仍有小块。<b>油基钻井液</b>抑制性强、造壁性好 → 岩屑不水化崩解、保持完整，实测粒径明显大于水基；<b>水基</b>因页岩水化崩解，实测粒径通常小得多。<br><b>沿井深会逐渐细化：</b>直井 / 造斜段颗粒快速上返、保持原始粒径（≈ D<sub>max</sub>）；进入大斜度 / 水平段后，颗粒在低边<b>滞留时间长、被钻具反复碾压</b> → 粒径逐渐减小（≈ d<sub>50</sub>）。程序按井斜自动在 D<sub>max</sub> ~ d<sub>50</sub> 之间过渡取值。</span></span></div>
     <div class="gt">CFD-DEM 内核参数（岩屑运移重矫正）<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">CFD-DEM 内核参数</span>内核为<b>降阶 CFD-DEM</b>（软球离散元 + 逐列一维润滑方程双向耦合），以标定的<b>运移比 TR(θ, V_loc, e, D_h)</b> 替代"自由沉降速度"重矫正 Cut Time。<br>· <b>钻具偏心度 e</b>：0 = 完全居中；0.95 = 贴壁。现场多为 0.4~0.8，水平段可取 0.7~0.9；偏心越大 → 低边窄缝流速越低 → 携岩越差。<br>· <b>模拟段长 L</b>：参与"每 L 米井段岩屑量"与 3D 粒子云显示段长，不影响运移比。</span></span></div>
@@ -1311,22 +1339,22 @@ html,body{max-width:100%;}
     </div>
     <div class="row">
       <div class="grp"><label>90° 水平段 e₉₀<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">e₉₀ · 水平段</span>钻柱完全躺下井壁，仅稳定器处局部顶起。默认 <b>0.92</b>（现场 0.85~0.95）。</span></span></label><input id="ecc90" value="0.92" placeholder="0.92"></div>
-      <div class="grp"><label>模拟段长 L (m)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">模拟段长 L</span>用于 ⑤「该段产出岩屑量 / 段内稳态悬浮岩屑量」折算与 3D 粒子云显示段长。<b>不影响</b>运移比 TR、ECD 与 Cut Time。<br>两个量差几个数量级是正常的：<b>产出量 = A<sub>bit</sub>·L</b>（井眼截面×段长，与 ROP 无关）；<b>段内悬浮量 = A<sub>ann</sub>·L·C<sub>v</sub></b>（再乘体积浓度，约是产出量的 1/300~1/500）。</span></span></label><input id="Lseg" value="0.4" placeholder="0.4"></div>
+      <div class="grp"><label>模拟段长 L <span class="u">m</span></label><input id="Lseg" value="0.4" placeholder="0.4"></div>
     </div>
     <div class="grp" style="margin-top:2px"><span id="eccPrev" style="font-size:11.5px;color:var(--sub);line-height:1.75">—</span></div>
     <div class="row">
-      <div class="grp"><label>环空循环温度 (℃)</label><input id="Tcirc" value="102"></div>
-      <div class="grp"><label>Fann 测量温度 (℃)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">Fann 测量温度 (T<sub>meas</sub>)</span><b>你做六速读数时粘度计内的泥浆温度</b> —— 不是环空温度、也不是地面气温。程序用它作为 Arrhenius 温度修正的<b>参考温度</b>：<code>K<sub>eff</sub> = K · exp[ E<sub>a</sub>/R · (1/T − 1/T<sub>meas</sub>) ]</code>。<br>· <b>油基 / 合成基：65 ℃</b>（150 ℉，现场标准测试温度）；<br>· 水基：按实际测试温度填（API 常 25 ℃ / 77 ℉，或按现场加热到 50 ℃）；<br>· 填错会整体抬高或压低井下流变与环空摩阻 → 直接改变 ECD。<br>选上方「钻井液体系」会自动套用该体系的典型测试温度。</span></span></label><input id="Tmeas" value="65"></div>
+      <div class="grp"><label>环空循环温度 <span class="u">℃</span></label><input id="Tcirc" value="102"></div>
+      <div class="grp"><label>Fann 测量温度 <span class="u">℃</span></label><input id="Tmeas" value="65"></div>
     </div>
     <div class="gt">井筒温压 → 钻井液密度修正 (P-T density)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">钻井液密度温压修正</span>修正公式：<code>ρ(z) = ρ₀ · [ 1 + Cp·(P − P₀) − Ct·(T − T₀) ]</code><br>其中 <b>P₀ = 0.101 MPa（大气压，固定）</b>，<b>T₀ = 下面「密度参考温度 T_ref」</b>。<br><b>含义：</b>你输入的钻井液密度 ρ₀ 是在「某个温度、某个压力」下测出来的；程序从那个基准出发，把 ρ₀ 修正到井下高温高压状态（<b>升温→膨胀变稀 ↓</b>，<b>加压→压缩变稠 ↑</b>）。<br>沿垂深积分得到井底静压 P_bh 与井底密度 ρ_bh（静态密度）、环空平均密度 ρ_avg（用于摩阻/雷诺数）。<br><b>关闭该开关</b>则全程按 ρ₀ 常数计算。</span></span></div>
     <div class="row three">
-      <div class="grp"><label>① 地表温度 Ts (℃)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">地表温度 Ts</span>地面年平均温度，只用于构造地温剖面 <code>T(z)=Ts+梯度×z/100</code> —— <b>与密度基准无关</b>（密度基准是下面的 T_ref）。</span></span></label><input id="Tsurf" value="20"></div>
-      <div class="grp"><label>② 地温梯度 (℃/100m)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">地温梯度</span>每 100 m <b>垂深</b>升温值；由实测温度点反算或取邻井值（页岩气井常见 2.5~3.5 ℃/100m）。</span></span></label><input id="gradT" value="3.0"></div>
-      <div class="grp"><label>③ 密度参考温度 Tref (℃)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">密度参考温度 T_ref</span>★ <b>你测「钻井液密度 ρ」时密度计所对应的温度</b>；API 标准为 20 ℃（英制 60 ℉ ≈ 15.6 ℃）。若现场是在 30~40 ℃ 井场温度下测的，就填实测温度。<br>该值决定密度修正的<b>出发点</b>：填错会整体抬高或压低动态密度与 ECD。</span></span></label><input id="Tref0" value="20"></div>
+      <div class="grp"><label>① 地表温度 Ts <span class="u">℃</span></label><input id="Tsurf" value="20"></div>
+      <div class="grp"><label>② 地温梯度 <span class="u">℃/100m</span></label><input id="gradT" value="3.0"></div>
+      <div class="grp"><label>③ 密度参考温度 Tref <span class="u">℃</span></label><input id="Tref0" value="20"></div>
     </div>
     <div class="row three">
-      <div class="grp"><label>压缩系数 (×10⁻⁴/MPa)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">等温压缩系数 β</span>随「钻井液体系」自动套用：油基 OBM 5.88、合成基 SBM 6.67、水基 WBM 4.44 ×10⁻⁴/MPa。可手改。<br><b>出处</b>：这是<b>基液量级的典型值</b>，不是本项目三份手册里的表（Baroid 手册 p51 只给 β 的定义式，并说明 DFG 用自带基液 PVT 库计算；M-I DFEM 同样无数值表），也不是本井实测。文献量级：Kårstad &amp; Aadnøy(1998) OBM 8.85、WBM 3.68；Zamora OBM1 4.09；清水 4.35。<br><b>影响</b>：β 每 +1×10⁻⁴ 约使 ESD +0.010 SG。<b>建议</b>用 ① 页「E1b α/β 标定」用实测密度反算后填这里。</span></span></label><input id="CPmud" value="5.88"></div>
-      <div class="grp"><label>热膨胀系数 (×10⁻⁴/℃)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">热膨胀系数 α</span>随「钻井液体系」自动套用：油基 OBM 8.70、合成基 SBM 10.00、水基 WBM 4.50 ×10⁻⁴/℃。<b>油基约为水基的 2 倍</b> —— 这是同一井况下油基 ECD 明显低于水基的主因。可手改。<br><b>出处</b>：同样是<b>基液典型值</b>（柴油 / 合成油量级），非手册表、非本井实测。文献量级：Kårstad &amp; Aadnøy(1998) OBM 8.11、WBM 4.60；Zamora OBM1 4.58；清水随温度 2.1~7.5。<br><b>影响</b>：α 每 +1×10⁻⁴ 约使 ESD −0.012~−0.018 SG，与 β 方向相反、部分抵消。标定入口见 ① 页「E1b」。</span></span></label><input id="CTmud" value="8.70"></div>
+      <div class="grp"><label>压缩系数 <span class="u">×10⁻⁴/MPa</span></label><input id="CPmud" value="5.88"></div>
+      <div class="grp"><label>热膨胀系数 <span class="u">×10⁻⁴/℃</span></label><input id="CTmud" value="8.70"></div>
       <div class="grp"><label>启用温压密度修正</label>
         <input id="usePT" type="checkbox" checked style="width:auto;height:22px;margin-top:6px"></div>
     </div>
@@ -1417,7 +1445,7 @@ html,body{max-width:100%;}
         <div class="grp"><label>床层几何回灌系数 k<sub>bed</sub>（含岩屑 ECD 的 ③ 项）</label>
           <input id="kBed" type="number" min="0" max="1" step="0.05" value="0.5">
           <span class="d">0 = 关闭；0.5 = 保守（默认）；1 = 全回灌</span></div>
-        <div class="grp"><label>实测迟到时间 (min，可选)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">迟到时间标定</span>填<b>现场实测迟到时间</b>（示踪剂/岩屑上返实测，min）后，程序自动与主引擎 Cut Time 对比，给出<b>标定系数 k<sub>lag</sub>=实测/计算</b>：· 偏差 ≤±10% → 模型吻合良好；· 实测明显偏长 → 实际床层阻滞/大肚子沉砂比标定表更重，可用 k 放大各口径 Cut Time；· 实测明显偏短 → 模型偏保守或实测含提前到达效应。<br>留空则不标定。</span></span></label>
+        <div class="grp"><label>实测迟到时间 (<span class="u">min</span>，可选)</label>
           <input id="lagMeas" type="number" min="0" step="1" placeholder="实测 · 无则留空">
           <span class="d">与计算 Cut Time 对比 → 输出标定系数 k<sub>lag</sub></span></div>
       </div>
@@ -1470,7 +1498,7 @@ html,body{max-width:100%;}
       <div class="row three">
         <div class="grp"><label>Cut Time 采用引擎</label>
           <select id="vpEngine"><option value="cfd">CFD-DEM 运移比 TR</option><option value="dfem">DFEM Walker &amp; Mayes</option><option value="nsl">★ N-S 低边耦合（偏心窄缝 H-B 局部流速）</option><option value="ns">N-S 平均（V_ann − V_SLIP）</option></select></div>
-        <div class="grp"><label>C<sub>conc</sub> 允许上限 (%)</label><input id="cconcMax" value="5"><span class="d">仅 DFEM 模式（⑥）使用</span></div>
+        <div class="grp"><label>C<sub>conc</sub> 允许上限 <span class="u">%</span></label><input id="cconcMax" value="5"><span class="d">仅 DFEM 模式（⑥）使用</span></div>
         <div class="grp"><label>角度修正（倾斜段）</label>
           <select id="dfemAngOn"><option value="1">启用</option><option value="0">关闭（纯垂直井模型）</option></select></div>
       </div>
@@ -1588,17 +1616,17 @@ html,body{max-width:100%;}
 
       <div class="gt">A · 地层压力剖面（当量密度梯度 SG）　<span style="color:#c8332a">★ 下列为<b>示例值</b>，必须替换成本井实测（地漏试验 LOT/FIT、邻井或漏失时立管压力反算），否则漏点定位会指向错误的层位</span></div>
       <div class="row three">
-        <div class="grp"><label>孔隙压力 PPG<sub>pore</sub> (SG)</label><input id="lpPore" value="1.62"><span class="d">仅压力窗口显示，不参与漏失判定</span></div>
-        <div class="grp"><label>漏失压力 PPG<sub>leak</sub> (SG)</label><input id="lpLeak" value="1.95"></div>
-        <div class="grp"><label>破裂压力 PPG<sub>frac</sub> (SG)</label><input id="lpFrac" value="2.18"></div>
+        <div class="grp"><label>孔隙压力 PPG<sub>pore</sub> <span class="u">SG</span></label><input id="lpPore" value="1.62"><span class="d">仅压力窗口显示，不参与漏失判定</span></div>
+        <div class="grp"><label>漏失压力 PPG<sub>leak</sub> <span class="u">SG</span></label><input id="lpLeak" value="1.95"></div>
+        <div class="grp"><label>破裂压力 PPG<sub>frac</sub> <span class="u">SG</span></label><input id="lpFrac" value="2.18"></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>套管鞋 TVD (m，0=全裸眼)</label><input id="lpShoe" value="2400"><span class="d">套管内不漏失</span></div>
-        <div class="grp"><label>薄弱层顶 TVD (m，0=无)</label><input id="lpWeakTop" value="2700"></div>
-        <div class="grp"><label>薄弱层底 TVD (m)</label><input id="lpWeakBot" value="3050"><span class="d">交叉点通常落在薄弱层顶界</span></div>
+        <div class="grp"><label>套管鞋 TVD (<span class="u">m</span>，0=全裸眼)</label><input id="lpShoe" value="2400"><span class="d">套管内不漏失</span></div>
+        <div class="grp"><label>薄弱层顶 TVD (<span class="u">m</span>，0=无)</label><input id="lpWeakTop" value="2700"></div>
+        <div class="grp"><label>薄弱层底 TVD <span class="u">m</span></label><input id="lpWeakBot" value="3050"><span class="d">交叉点通常落在薄弱层顶界</span></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>薄弱层漏失梯度 (SG)</label><input id="lpWeakSG" value="1.86"></div>
+        <div class="grp"><label>薄弱层漏失梯度 <span class="u">SG</span></label><input id="lpWeakSG" value="1.86"></div>
         <div class="grp"></div><div class="grp"></div>
       </div>
 
@@ -1611,28 +1639,28 @@ html,body{max-width:100%;}
           <option value="bed">仅层理（论文图7b）</option>
           <option value="homo">均质（论文图7a · 对照用）</option>
         </select><span class="d">三种假设 ＝ 论文 7a/7b/7c</span></div>
-        <div class="grp"><label>上覆压力 σ<sub>v</sub> 当量 (SG)</label><input id="lpOv" value="2.55"><span class="d">一般 2.3~2.6</span></div>
-        <div class="grp"><label>最大水平主应力 σ<sub>H</sub> (SG)</label><input id="lpSH" value="2.70"></div>
+        <div class="grp"><label>上覆压力 σ<sub>v</sub> 当量 <span class="u">SG</span></label><input id="lpOv" value="2.55"><span class="d">一般 2.3~2.6</span></div>
+        <div class="grp"><label>最大水平主应力 σ<sub>H</sub> <span class="u">SG</span></label><input id="lpSH" value="2.70"></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>最小水平主应力 σ<sub>h</sub> (SG)</label><input id="lpSh" value="2.30"><span class="d">≈ 漏失压力下限（裂缝开启压力）</span></div>
-        <div class="grp"><label>σ<sub>H</sub> 方位 (° 自北)</label><input id="lpAzH" value="90"></div>
+        <div class="grp"><label>最小水平主应力 σ<sub>h</sub> <span class="u">SG</span></label><input id="lpSh" value="2.30"><span class="d">≈ 漏失压力下限（裂缝开启压力）</span></div>
+        <div class="grp"><label>σ<sub>H</sub> 方位 (<span class="u">°</span> 自北)</label><input id="lpAzH" value="90"></div>
         <div class="grp"><label>Biot 系数 α</label><input id="lpBiot" value="0.85"></div>
       </div>
       <div class="row three">
         <div class="grp"><label>泊松比 ν</label><input id="lpNu" value="0.22"></div>
-        <div class="grp"><label>层理倾角 (°)</label><input id="lpDip" value="8"><span class="d">筇竹寺组近水平层理 5~10°</span></div>
-        <div class="grp"><label>层理倾向 (° 自北)</label><input id="lpDipAz" value="330"></div>
+        <div class="grp"><label>层理倾角 <span class="u">°</span></label><input id="lpDip" value="8"><span class="d">筇竹寺组近水平层理 5~10°</span></div>
+        <div class="grp"><label>层理倾向 (<span class="u">°</span> 自北)</label><input id="lpDipAz" value="330"></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>S<sub>t</sub>(β=0°) 抗张强度 (MPa)</label><input id="lpSt0" value="9.6"><span class="d">巴西劈裂最小值（沿层理劈开）</span></div>
+        <div class="grp"><label>S<sub>t</sub>(β=0°) 抗张强度 <span class="u">MPa</span></label><input id="lpSt0" value="9.6"><span class="d">巴西劈裂最小值（沿层理劈开）</span></div>
         <div class="grp"><label>各向异性系数 S<sub>t</sub>(90°)/S<sub>t</sub>(0°)</label><input id="lpKan" value="1.9"><span class="d">论文实测 9.6~21.2 MPa ⇒ 1.9~2.2</span></div>
         <div class="grp"><label>弱面段 S<sub>t</sub> 折减</label><input id="lpWeakSt" value="0.75"><span class="d">在 A 块「薄弱层」顶 / 底范围内生效</span></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>裂缝面倾角 (°)</label><input id="lpFracDip" value="75"></div>
-        <div class="grp"><label>裂缝面倾向 (° 自北)</label><input id="lpFracAz" value="60"></div>
-        <div class="grp"><label>破碎带顶 TVD / 底 TVD (m)</label><input id="lpBrkTop" value="0"><input id="lpBrkBot" value="0"><span class="d">0 / 0 ＝ 无破碎带</span></div>
+        <div class="grp"><label>裂缝面倾角 <span class="u">°</span></label><input id="lpFracDip" value="75"></div>
+        <div class="grp"><label>裂缝面倾向 (<span class="u">°</span> 自北)</label><input id="lpFracAz" value="60"></div>
+        <div class="grp"><label>破碎带顶 TVD / 底 TVD <span class="u">m</span></label><input id="lpBrkTop" value="0"><input id="lpBrkBot" value="0"><span class="d">0 / 0 ＝ 无破碎带</span></div>
       </div>
       <div class="row three">
         <div class="grp"><label>破碎带 σ<sub>h</sub> 折减</label><input id="lpBrkK" value="0.92"><span class="d">构造破碎带 σh 降低 → P_leak 降幅显著</span></div>
@@ -1644,14 +1672,14 @@ html,body{max-width:100%;}
       </div>
       <div id="lpEatonBox" style="display:none">
         <div class="row three">
-          <div class="grp"><label>Δt<sub>0</sub> 地表声波时差 (μs/ft)</label><input id="lpDt0" value="86"></div>
+          <div class="grp"><label>Δt<sub>0</sub> 地表声波时差 <span class="u">μs/ft</span></label><input id="lpDt0" value="86"></div>
           <div class="grp"><label>压实系数 m</label><input id="lpDtM" value="0.0001"></div>
           <div class="grp"><label>Eaton 压实指数 c</label><input id="lpDtC" value="2.62"></div>
         </div>
         <div class="row three">
-          <div class="grp"><label>实测声波点①：TVD / Δt</label><input id="lpDtH1" value="" placeholder="TVD m"><input id="lpDtD1" value="" placeholder="Δt μs/ft"></div>
-          <div class="grp"><label>实测声波点②：TVD / Δt</label><input id="lpDtH2" value="" placeholder="TVD m"><input id="lpDtD2" value="" placeholder="Δt μs/ft"></div>
-          <div class="grp"><label>实测声波点③：TVD / Δt</label><input id="lpDtH3" value="" placeholder="TVD m"><input id="lpDtD3" value="" placeholder="Δt μs/ft"></div>
+          <div class="grp"><label>实测声波点①：TVD / Δt <span class="u">m</span></label><input id="lpDtH1" value="" placeholder="TVD m"><input id="lpDtD1" value="" placeholder="Δt μs/ft"></div>
+          <div class="grp"><label>实测声波点②：TVD / Δt <span class="u">m</span></label><input id="lpDtH2" value="" placeholder="TVD m"><input id="lpDtD2" value="" placeholder="Δt μs/ft"></div>
+          <div class="grp"><label>实测声波点③：TVD / Δt <span class="u">m</span></label><input id="lpDtH3" value="" placeholder="TVD m"><input id="lpDtD3" value="" placeholder="Δt μs/ft"></div>
         </div>
       </div>
       <div class="note" style="margin:4px 0 6px;font-size:11px;line-height:1.75">
@@ -1694,12 +1722,12 @@ html,body{max-width:100%;}
             <input type="checkbox" id="lpWellOverride" style="width:auto;height:14px;margin:0"> 手动覆盖井型（一般不必）
           </span>
         </div>
-        <div class="grp"><label>入井流量 Q<sub>in</sub> (L/s)</label><input id="lpQin" value="" placeholder="实测 · 泵排量"></div>
+        <div class="grp"><label>入井流量 Q<sub>in</sub> <span class="u">L/s</span></label><input id="lpQin" value="" placeholder="实测 · 泵排量"></div>
       </div>
 
       <div class="gt">B2 · ★ 起钻/静止工况（岩屑床憋漏：钻头不在井底时，钻头以下井段无钻具搅动 → 岩屑堆积 → 环空摩阻剧增）</div>
       <div class="row three">
-        <div class="grp"><label>钻头位置 MD (m)</label><input id="lpBitMd" value="0"><span class="d">0 = 钻头在井底</span></div>
+        <div class="grp"><label>钻头位置 MD <span class="u">m</span></label><input id="lpBitMd" value="0"><span class="d">0 = 钻头在井底</span></div>
         <div class="grp"><label>床段环空摩阻放大倍数</label><input id="lpBedBoost" value="1.0"><span class="d">钻头以下每米摩阻 × 该值（床越厚越大）</span></div>
         <div class="grp"><label>停泵前是否转动钻具</label><select id="lpRotating">
           <option value="1">转动（扭矩法可用）</option>
@@ -1710,23 +1738,23 @@ html,body{max-width:100%;}
 
       <div class="gt">C · 实测反演数据（★ 必须填本井实测值；留空则对应判据自动失效并标注“数据不足”，<b>绝不用默认值凑结果</b>）</div>
       <div class="row three">
-        <div class="grp"><label>出口流量 Q<sub>out</sub> (L/s)</label><input id="lpQout" value="" placeholder="实测 · 例 29.49"></div>
-        <div class="grp"><label>漏失前立管压力 (MPa)</label><input id="lpPstd0" value="" placeholder="实测 · 例 28.44"></div>
-        <div class="grp"><label>当前立管压力 (MPa)</label><input id="lpPstd" value="" placeholder="实测 · 例 22.79"></div>
+        <div class="grp"><label>出口流量 Q<sub>out</sub> <span class="u">L/s</span></label><input id="lpQout" value="" placeholder="实测 · 例 29.49"></div>
+        <div class="grp"><label>漏失前立管压力 <span class="u">MPa</span></label><input id="lpPstd0" value="" placeholder="实测 · 例 28.44"></div>
+        <div class="grp"><label>当前立管压力 <span class="u">MPa</span></label><input id="lpPstd" value="" placeholder="实测 · 例 22.79"></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>漏失前悬重 (kN)</label><input id="lpWhook0" value="" placeholder="实测 · 无则留空"></div>
-        <div class="grp"><label>当前悬重 (kN)</label><input id="lpWhook" value="" placeholder="实测 · 无则留空"></div>
-        <div class="grp"><label>当前扭矩 (kN·m)</label><input id="lpTorque" value="" placeholder="实测 · 无则留空"></div>
+        <div class="grp"><label>漏失前悬重 <span class="u">kN</span></label><input id="lpWhook0" value="" placeholder="实测 · 无则留空"></div>
+        <div class="grp"><label>当前悬重 <span class="u">kN</span></label><input id="lpWhook" value="" placeholder="实测 · 无则留空"></div>
+        <div class="grp"><label>当前扭矩 <span class="u">kN·m</span></label><input id="lpTorque" value="" placeholder="实测 · 无则留空"></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>漏失前扭矩 (kN·m)</label><input id="lpTorque0" value="" placeholder="实测 · 无则留空"></div>
-        <div class="grp"><label>漏失前出口温度 (℃)</label><input id="lpTout0" value="" placeholder="实测 · 无则留空"></div>
-        <div class="grp"><label>当前出口温度 (℃)</label><input id="lpTout" value="" placeholder="实测 · 无则留空"></div>
+        <div class="grp"><label>漏失前扭矩 <span class="u">kN·m</span></label><input id="lpTorque0" value="" placeholder="实测 · 无则留空"></div>
+        <div class="grp"><label>漏失前出口温度 <span class="u">℃</span></label><input id="lpTout0" value="" placeholder="实测 · 无则留空"></div>
+        <div class="grp"><label>当前出口温度 <span class="u">℃</span></label><input id="lpTout" value="" placeholder="实测 · 无则留空"></div>
       </div>
       <div class="row three">
         <div class="grp"><label>漏失前入口温度 (℃)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">★ 入口温度（新增）</span>入口 = <b>泵入端</b>，取循环罐/泵入口泥浆温度（与出口温度计同一时间、同一稳定工况下读取）。<br><b>为什么要填：</b>井漏时<b>出口温度↑（返速↓、换热更充分，趋近地温）</b>而<b>入口温度往往↓（需补充低温新浆、返出热浆回罐量减少）</b>，两端<b>反向变化</b> → 用 <b>ΔT = 出口 − 入口</b> 判定比单看出口温度灵敏得多，还能自动扣除地面罐温漂移（补浆、昼夜气温、季节）。<br><b>留空</b>则程序退回"仅出口温度"口径（以地表温度 Ts 当作入井温度）。</span></span></label><input id="lpTin0" value="" placeholder="实测 · 无则留空"></div>
-        <div class="grp"><label>当前入口温度 (℃)</label><input id="lpTin" value="" placeholder="实测 · 无则留空"></div>
+        <div class="grp"><label>当前入口温度 <span class="u">℃</span></label><input id="lpTin" value="" placeholder="实测 · 无则留空"></div>
         <div class="grp"><label>⑤ 温度法口径</label>
           <select id="lpTempMode">
             <option value="auto" selected>自动（有入口温度→用进出口温差 ΔT）</option>
@@ -1754,7 +1782,7 @@ html,body{max-width:100%;}
 
       <div class="gt">F · ★ 漏失机理判别（现场特征 × 模型判据 → 主控机理 / 堵漏方向）　<span style="color:var(--sub)">论文三类机理：压裂性（沿层理张性破裂）· 裂缝性扩展 · 溶洞性</span></div>
       <div class="row three">
-        <div class="grp"><label>实测漏速 (m³/h)</label><input id="lmRate" value="" placeholder="留空 ＝ 由 Q_in−Q_out 自动算"></div>
+        <div class="grp"><label>实测漏速 <span class="u">m³/h</span></label><input id="lmRate" value="" placeholder="留空 ＝ 由 Q_in−Q_out 自动算"></div>
         <div class="grp"><label>漏失动态</label><select id="lmDyn">
           <option value="selfStop" selected>循环后递减 → 自停</option>
           <option value="slow">缓慢减弱但未停</option>
@@ -1767,8 +1795,8 @@ html,body{max-width:100%;}
         </select></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>累计漏失量 (m³)</label><input id="lmVol" value="" placeholder="例 1124.3"></div>
-        <div class="grp"><label>堵漏耗时 (h)</label><input id="lmHours" value="" placeholder="例 48"></div>
+        <div class="grp"><label>累计漏失量 <span class="u">m³</span></label><input id="lmVol" value="" placeholder="例 1124.3"></div>
+        <div class="grp"><label>堵漏耗时 <span class="u">h</span></label><input id="lmHours" value="" placeholder="例 48"></div>
         <div class="grp"><label>漏层岩性</label><select id="lmLith">
           <option value="shale" selected>页岩 / 泥页岩</option>
           <option value="sand">砂岩</option>
@@ -1784,7 +1812,7 @@ html,body{max-width:100%;}
           <option value="both">层理 ＋ 裂缝均发育</option>
           <option value="none">弱面不发育</option>
         </select></div>
-        <div class="grp"><label>起漏时钻井液当量密度 (SG)</label><input id="lmSgObs" value="" placeholder="留空 ＝ 取当前循环 ECD"><span class="d">用于 P<sub>leak</sub> 模型反标定</span></div>
+        <div class="grp"><label>起漏时钻井液当量密度 <span class="u">SG</span></label><input id="lmSgObs" value="" placeholder="留空 ＝ 取当前循环 ECD"><span class="d">用于 P<sub>leak</sub> 模型反标定</span></div>
         <div class="grp"></div>
       </div>
       <table id="lossMechTbl"></table>
@@ -1792,13 +1820,13 @@ html,body{max-width:100%;}
 
       <div class="gt">E · ★ 封堵段设计与浆量估算（全部按<b>斜深 MD</b>，直接用于封堵浆配制）</div>
       <div class="row three">
-        <div class="grp"><label>封堵段顶 MD (m，0=自动)</label><input id="lpPlugTop" value="0"><span class="d">自动 = 漏点 − 扩边</span></div>
-        <div class="grp"><label>封堵段底 MD (m，0=自动)</label><input id="lpPlugBot" value="0"><span class="d">自动 = 漏点 + 扩边</span></div>
-        <div class="grp"><label>上下扩边余量 (m)</label><input id="lpPlugPad" value="50"></div>
+        <div class="grp"><label>封堵段顶 MD (<span class="u">m</span>，0=自动)</label><input id="lpPlugTop" value="0"><span class="d">自动 = 漏点 − 扩边</span></div>
+        <div class="grp"><label>封堵段底 MD (<span class="u">m</span>，0=自动)</label><input id="lpPlugBot" value="0"><span class="d">自动 = 漏点 + 扩边</span></div>
+        <div class="grp"><label>上下扩边余量 <span class="u">m</span></label><input id="lpPlugPad" value="50"></div>
       </div>
       <div class="row three">
         <div class="grp"><label>浆量附加系数</label><input id="lpPlugK" value="1.4"><span class="d">常规 1.3~1.5；裂缝发育 1.5~2.0</span></div>
-        <div class="grp"><label>井径 D<sub>h</sub> (mm)<span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">封堵段井径</span><b>留空则自动取主表单「标称井径 D_hole」</b>，与主计算保持一致。<br><b>★ 常见错漏：</b>改了主表单井径（如 215.9 → 230 mm）却忘了改这里，容积会按旧井径算 —— 容积正比于 D²，<b>230 mm 比 215.9 mm 大 13.5%</b>，直接导致备浆量不足。<br>仅当封堵段实测井径与主井径明显不同（大肚子 / 缩径段）时才手工填写。</span></span></label><input id="lpPlugDh" value="" placeholder="留空=取主表单 D_hole"></div>
+        <div class="grp"><label>井径 D<sub>h</sub> <span class="u">mm</span></label><input id="lpPlugDh" value="" placeholder="留空=取主表单 D_hole"></div>
         <div class="grp"><label>注入方式（决定段内是否有钻具）</label><select id="lpPlugMode">
           <option value="open" selected>裸眼注入（钻具在漏层以上，段内无钻具）</option>
           <option value="pipe">环空注入（钻具下至漏层底，段内有钻具）</option>
@@ -1832,12 +1860,12 @@ html,body{max-width:100%;}
           <option value="carb">碳酸盐岩（裂缝发育）</option>
           <option value="coal">煤 / 碳质夹层</option>
         </select></div>
-        <div class="grp"><label>迟到时间 (min)</label><input id="cvLag" value="70"></div>
-        <div class="grp"><label>发现掉块时钻头位置 MD (m)</label><input id="cvBitMd" value="3993"></div>
+        <div class="grp"><label>迟到时间 <span class="u">min</span></label><input id="cvLag" value="70"></div>
+        <div class="grp"><label>发现掉块时钻头位置 MD <span class="u">m</span></label><input id="cvBitMd" value="3993"></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>坍塌压力梯度 (SG)</label><input id="cvPc" value="1.90"><span class="d">力学实验 / 邻井；页岩常用 1.85~2.00</span></div>
-        <div class="grp"><label>正常钻屑中值粒径 d<sub>50</sub> (mm)</label><input id="cvD50" value="12"><span class="d">现场实测；PDC 常 10~25 mm（油基更完整）</span></div>
+        <div class="grp"><label>坍塌压力梯度 <span class="u">SG</span></label><input id="cvPc" value="1.90"><span class="d">力学实验 / 邻井；页岩常用 1.85~2.00</span></div>
+        <div class="grp"><label>正常钻屑中值粒径 d<sub>50</sub> <span class="u">mm</span></label><input id="cvD50" value="12"><span class="d">现场实测；PDC 常 10~25 mm（油基更完整）</span></div>
         <div class="grp"><label>掉块出现阶段</label><select id="cvPhase">
           <option value="circ">正常循环钻进</option>
           <option value="back" selected>起钻 / 上提（含倒划眼）</option>
@@ -1846,8 +1874,8 @@ html,body{max-width:100%;}
         </select></div>
       </div>
       <div class="row three">
-        <div class="grp"><label>泥页岩段顶 MD (m)</label><input id="cvShaleTop" value="3612"></div>
-        <div class="grp"><label>泥页岩段底 MD (m)</label><input id="cvShaleBot" value="4528"></div>
+        <div class="grp"><label>泥页岩段顶 MD <span class="u">m</span></label><input id="cvShaleTop" value="3612"></div>
+        <div class="grp"><label>泥页岩段底 MD <span class="u">m</span></label><input id="cvShaleBot" value="4528"></div>
         <div class="grp"><label>钻井液体系类型</label><select id="cvMudType">
           <option value="diesel" selected>柴油基油基钻井液（OBM）</option>
           <option value="sbm">合成基钻井液（SBM）</option>
@@ -1860,7 +1888,7 @@ html,body{max-width:100%;}
       <div class="row three">
         <div class="grp"><label>油水比 O/W（油基 / 合成基）</label><input id="cvOWR" value="80"><span class="d">80 = 油80 : 水20；水基体系留空</span></div>
         <div class="grp"><label>水相活度 a<sub>w</sub></label><input id="cvAw" value="0.85"><span class="d">油基指乳化水相；须 ≤ 页岩活度才不水化</span></div>
-        <div class="grp"><label>封堵剂加量 (%)</label><input id="cvSeal" value="3"><span class="d">超细 CaCO₃ / 沥青 / 石墨 / 铝基</span></div>
+        <div class="grp"><label>封堵剂加量 <span class="u">%</span></label><input id="cvSeal" value="3"><span class="d">超细 CaCO₃ / 沥青 / 石墨 / 铝基</span></div>
       </div>
       <div class="gt">D · 元素录井（可选 · 支持多批样品，最多 6 组 → 按<b>层位</b>或 <b>Si/Al</b> 自动分组判别来源）</div>
       <table class="inpTbl" style="font-size:12px">
@@ -1968,18 +1996,18 @@ html,body{max-width:100%;}
     <h2>② 起下钻每根立柱 ECD / ESD <span class="sub">（按单根/立柱长度从井底向井口步进，可滚动）</span></h2>
       <div class="rel">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
-          <label style="font-size:12px;color:var(--dim)">立柱/单根长度</label>
+          <label style="font-size:12px;color:var(--dim)">立柱/单根长度 <span class="u">m</span></label>
           <input id="tripStep" type="number" step="1" value="28" style="width:80px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;text-align:right">
           <span style="font-size:12px;color:var(--dim)">m</span>
-          <label style="font-size:12px;color:var(--dim);margin-left:12px">起下钻速度</label>
+          <label style="font-size:12px;color:var(--dim);margin-left:12px">起下钻速度 <span class="u">m/min</span></label>
           <input id="tripVtrip" type="number" step="0.05" value="0.3" style="width:80px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;text-align:right">
           <span style="font-size:12px;color:var(--dim)">m/s</span>
         </div>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-          <label style="font-size:12px;color:var(--dim)">套管鞋 MD</label>
+          <label style="font-size:12px;color:var(--dim)">套管鞋 MD <span class="u">m</span></label>
           <input id="tripShoeMd" type="number" step="1" value="" placeholder="0=全裸眼" style="width:92px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;text-align:right">
           <span style="font-size:12px;color:var(--dim)">m</span>
-          <label style="font-size:12px;color:var(--dim);margin-left:8px">套管内径</label>
+          <label style="font-size:12px;color:var(--dim);margin-left:8px">套管内径 <span class="u">mm</span></label>
           <input id="tripCsgId" type="number" step="1" value="" placeholder="留空=裸眼" style="width:92px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px;text-align:right">
           <span style="font-size:12px;color:var(--dim)">mm</span>
           <span class="hint" style="font-size:11px;color:var(--dim)">套管段按内径算环空（激动/抽汲更敏感）；留空则沿用 ② 的技术套管鞋 / 上层套管内径</span>
@@ -2409,7 +2437,7 @@ html,body{max-width:100%;}
 
       <div class="gt">A · 实测点批量录入 <span class="tip" tabindex="0">?</span><span class="tipbody"><span class="tph">实测点录入格式</span>
         每行一个实测点，<b>逗号分隔</b>，列顺序固定为：<br>
-        <code>井深MD(m), 实测ECD(SG), 实测CUT_time(min), 实测立压(MPa), 排量(L/s), ROP(m/h), 泥浆密度(SG), 岩屑粒径(mm)</code><br><br>
+        <code id="calibFmtTip">井深MD(m), 实测ECD(SG), 实测CUT_time(min), 实测立压(MPa), 排量(L/s), ROP(m/h), 泥浆密度(SG), 岩屑粒径(mm)</code><br><br>
         <b>留空处理：</b>某列不想参与可用 <code>0</code> 或空表示「该点无此实测」；<br>
         · 实测 ECD &gt; 0 → 反求该点 <b>kFric</b>（摩阻通道，按 with-cuttings 口径，与现场实测 ECD 一致）；<br>
         · 实测 CUT time &gt; 0 → 反求该点 <b>kSlip</b>（携岩通道）；<br>
@@ -2424,13 +2452,13 @@ html,body{max-width:100%;}
       </span></span></div>
       <div class="row" style="grid-template-columns:1fr auto auto">
         <div class="grp">
-          <label>实测点（每行一条：md, ecdSG, cutMin, 立压MPa, qLps, rop, rhoSG, dcMm [, buTimeMin]）</label>
+          <label id="calibFmtLabel">实测点（每行一条：md, ecdSG, cutMin, 立压MPa, qLps, rop, rhoSG, dcMm [, buTimeMin]）</label>
           <textarea id="calibData" rows="9" style="width:100%;font-family:Consolas,Menlo,monospace;font-size:12px;line-height:1.5">1800,1.72,68,18.6,24,9,1.63,5.0
 2600,1.71,83,20.1,23,7,1.63,4.5
 3400,1.69,103,21.8,22,6,1.64,4.0
 4200,1.67,127,23.5,21,5,1.64,3.5
 5000,1.66,159,25.4,20,4,1.65,3.0</textarea>
-          <div class="d" style="margin-top:4px">
+          <div class="d" id="calibFmtHint" style="margin-top:4px">
             8 列固定：<b>md, ECD(SG,含屑), CUT time(min,岩屑返出), 立压(MPa), 排量(L/s), ROP(m/h), 密度(SG), 岩屑粒径(mm)</b>；
             留空的列保留逗号（如 <code>4700,1.87,,,30.27,4.83,1.76,3.0</code>）即沿用①页当前值。
             第 9 列（可选）填日报 <b>BU Time（泥浆迟到 min）</b>做 lag 校验，不参与反求。
@@ -2443,11 +2471,11 @@ html,body{max-width:100%;}
           <div class="d">无井斜表时生效；有表则按表积分 TVD</div>
         </div>
         <div class="grp" style="align-self:end">
-          <label>基准密度 ρ (SG)</label>
+          <label>基准密度 ρ <span class="u">g/cm³</span></label>
           <input id="calibRho" type="number" value="1.65" min="1" max="2.5" step="0.01" style="width:90px">
         </div>
         <div class="grp" style="align-self:end">
-          <label>基准排量 Q (L/s)</label>
+          <label>基准排量 Q <span class="u">L/s</span></label>
           <input id="calibQ" type="number" value="22" min="1" max="100" step="1" style="width:90px">
         </div>
         <div class="grp" style="align-self:end">
@@ -5012,6 +5040,26 @@ html,body{max-width:100%;}
     kc: { u: ['Pa·sⁿ', 'lbf/100ft²·sⁿ'], f: [C.LBF100FT2_2_PA, 1] },
     /* 塑性粘度 μ_p：mPa·s 与 cP 数值相同 */
     mu: { u: ['mPa·s', 'cP'], f: [1, 1] },
+    /* 秒（时间步上限等）——两制写法相同 */
+    sec: { u: ['s', 's'], f: [1, 1] },
+    /* 浓度 mg/L（氯离子等）——两制写法相同 */
+    mgL: { u: ['mg/L', 'mg/L'], f: [1, 1] },
+    /* 密度（③ 反解口径：基准 g/cm³，公制侧显示 kg/m³） */
+    rhoSI: { u: ['kg/m³', 'ppg'], f: [1000, C.GCC2PPG] },
+    /* 体积 / 累计量 */
+    vol: { u: ['m³', 'bbl'], f: [1, 6.28981077] },
+    /* 体积流量（漏速） */
+    volRate: { u: ['m³/h', 'bbl/h'], f: [1, 6.28981077] },
+    /* 螺杆每转排量 */
+    flowRev: { u: ['L/rev', 'gal/rev'], f: [1, 1 / 3.785411784] },
+    /* 扭矩 */
+    torque: { u: ['kN·m', 'klbf·ft'], f: [1, 0.737562149] },
+    /* 力（悬重） */
+    force: { u: ['kN', 'klbf'], f: [1, 0.224808943] },
+    /* 声波时差：基准 μs/ft（油田惯用），公制侧显示 μs/m */
+    acDt: { u: ['μs/m', 'μs/ft'], f: [C.M2FT, 1] },
+    /* 地温梯度：基准 ℃/100m */
+    gradT: { u: ['℃/100m', '℉/100ft'], f: [1, 1.8 / C.M2FT] },
     /* 温度：非线性（含 32 偏置），toDisp / toBase 里单独处理；
        此处的 f 仅为占位，实际不走 f 路径，登记它只为让 label('temp') 有单位可显示 */
     temp: { u: ['°C', '°F'], f: [1, 9 / 5] },
@@ -5126,6 +5174,9 @@ html,body{max-width:100%;}
   var API = {
     C: C, T: T, TEMP: TEMP,
     sys: sys, setSys: setSys, sysName: sysName, sysFull: sysFull, isSI: isSI,
+    /* ★ 图表/文本出口便捷函数：SI 值 → 当前单位制数值 / 当前单位标签 */
+    utk: function (k, v) { return toDisp(k, v); },
+    ulb: function (k) { return label(k); },
     toDisp: toDisp, toBase: toBase,
     label: label, labelAlt: labelAlt,
     rnd: rnd, round6: round6, sigRound: sigRound, fmt: fmt, dv: dv, dvu: dvu, alt: alt,
@@ -5135,6 +5186,56 @@ html,body{max-width:100%;}
 
   root.ECDUnits = API;
   if (typeof module !== 'undefined' && module.exports) module.exports = API;
+})(typeof window !== 'undefined' ? window : this);
+
+/* ============================================================================
+ * 输出侧单位出口（全站共用）
+ * ----------------------------------------------------------------------------
+ * UU(k, v) ：SI 基准值 → 当前单位制数值（图表刻度、文本拼接）
+ * UL(k)    ：当前单位制单位标签（轴标题、脚注）
+ * uout(s)  ：把一段「SI 口径」的 HTML/文本按当前单位制整体换算
+ *            （'123.4 MPa' → '17905 psi'、'20 ℃' → '68 ℉' …）。
+ *            只在英制下生效；公制下原样返回，零开销、零回归。
+ * ★ 为什么需要它：②/③ 页数百处渲染模板里数字与 SI 单位写死在字符串里，
+ *   逐个改写风险与工作量都不可接受；而这些「数字+单位」模式高度规律，
+ *   在渲染出口做一次受控映射即可保证输出与输入同一单位制。
+ * ★ 安全边界：只匹配「数字 + 白名单单位」，HTML 标签/属性/CSS 不可能
+ *   构成该模式；无量纲量（%、°、min、h、Fann 读数、Pa 流变）不在表内。
+ * ========================================================================== */
+(function (root) {
+  'use strict';
+  var U = (typeof root !== 'undefined' && root.ECDUnits) ? root.ECDUnits : null;
+  function isSI() { try { return !U || U.isSI(); } catch (e) { return true; } }
+  function num(x) { return U ? U.utk('none', x) : x; }
+  root.UU = function (k, v) { try { return U ? U.utk(k, v) : v; } catch (e) { return v; } };
+  root.UL = function (k) { try { return U ? U.ulb(k) : ''; } catch (e) { return ''; } };
+
+  /* 映射表：[正则, 换算函数] —— 长单位必须排在短单位之前 */
+  var RULES = [
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*kg\/m³/g, function (m, a) { return (a * 0.008345404).toFixed(2) + ' ppg'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*℃\/100m/g, function (m, a) { return (a * 1.8 / 3.280839895).toFixed(2) + ' ℉/100ft'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*℃/g, function (m, a) { return (a * 1.8 + 32).toFixed(1) + ' ℉'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*MPa/g, function (m, a) { return (a * 145.0377377).toFixed(a * 145.0377377 < 1000 ? 2 : 0) + ' psi'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*kPa/g, function (m, a) { return (a * 0.1450377377).toFixed(2) + ' psi'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*L\/s/g, function (m, a) { return (a * 15.850323141).toFixed(1) + ' gpm'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*L\/rev/g, function (m, a) { return (a / 3.785411784).toFixed(3) + ' gal/rev'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*m³\/h/g, function (m, a) { return (a * 6.28981077).toFixed(2) + ' bbl/h'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*m³/g, function (m, a) { return (a * 6.28981077).toFixed(2) + ' bbl'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*kN·m/g, function (m, a) { return (a * 0.737562149).toFixed(2) + ' klbf·ft'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*kN\b/g, function (m, a) { return (a * 0.224808943).toFixed(2) + ' klbf'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*m\/min/g, function (m, a) { return (a * 3.280839895).toFixed(2) + ' ft/min'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*m\/h/g, function (m, a) { return (a * 3.280839895).toFixed(1) + ' ft/h'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*m\/s/g, function (m, a) { return (a * 3.280839895).toFixed(2) + ' ft/s'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*μs\/ft/g, function (m, a) { return (a * 3.280839895).toFixed(1) + ' μs/m'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*SG/g, function (m, a) { return (a * 8.345404).toFixed(2) + ' ppg'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*mm/g, function (m, a) { return (a * 0.0393700787).toFixed(a < 10 ? 3 : 2) + ' in'; }],
+    [/([-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)\s*m\b/g, function (m, a) { return (a * 3.280839895).toFixed(1) + ' ft'; }]
+  ];
+  root.uout = function (s) {
+    if (!s || typeof s !== 'string' || isSI()) return s;
+    RULES.forEach(function (r) { s = s.replace(r[0], r[1]); });
+    return s;
+  };
 })(typeof window !== 'undefined' ? window : this);
 
 /* ============================================================================
@@ -5297,9 +5398,66 @@ html,body{max-width:100%;}
     i_ecr: 'none', i_kRot: 'none', i_kT: 'none', i_kFric: 'none', i_kSlip: 'none',
     i_tRheoOn: 'none',
     i_refEcd: 'ecd', i_refClean: 'ecd', i_refCut: 'hr', i_refVf: 'pct',
-    i_tjOn: 'none', i_phiMode: 'none', i_tvdScale: 'none', i_useSurvey: 'none'
+    i_tjOn: 'none', i_phiMode: 'none', i_tvdScale: 'none', i_useSurvey: 'none',
+
+    /* ==================================================================
+     * ② CTS-DEM 主引擎 / ③ 漏失诊断·堵漏 / ④ 瞬态携岩 / ③ PVT 反解
+     * —— 全部纳入同一套单位体系：计算内核一律 SI 基准，
+     *    读表 toBase、渲染 toDisp，切换时整体换算，杜绝「半套英制」。
+     * ================================================================== */
+    /* ---- ② 主引擎 ---- */
+    Dhole: 'dia', MD: 'len', Q: 'flow', rho: 'rho', rhoc: 'rho',
+    nzN: 'none', nzD: 'dia', dPmot: 'p', dPoth: 'p', spp: 'p', qMot: 'flowRev',
+    torque: 'torque', ROP: 'rop', RPM: 'rpm',
+    t600: 'none', t300: 'none', t200: 'none', t100: 'none', t6: 'none', t3: 'none',
+    gel10v: 'none', gel10mv: 'none', gel30v: 'none',
+    dp: 'dia', dpmax: 'dia',
+    eccA: 'none', ecc0: 'none', ecc30: 'none', ecc60: 'none', ecc90: 'none',
+    Lseg: 'len', Tcirc: 'temp', Tmeas: 'temp', Tsurf: 'temp', gradT: 'gradT', Tref0: 'temp',
+    CPmud: 'invP', CTmud: 'invT', Ea_v: 'none',
+    kBed: 'none', cconcMax: 'pct', nsKap: 'none', lagMeas: 'min',
+    /* ---- ③ 漏失诊断 / 堵漏 ---- */
+    lpPore: 'rho', lpLeak: 'rho', lpFrac: 'rho',
+    lpShoe: 'len', lpWeakTop: 'len', lpWeakBot: 'len', lpWeakSG: 'rho',
+    lpOv: 'rho', lpSH: 'rho', lpSh: 'rho',
+    lpAzH: 'deg', lpBiot: 'none', lpNu: 'none', lpDip: 'deg', lpDipAz: 'deg',
+    lpSt0: 'p', lpWeakSt: 'none', lpKan: 'none',
+    lpFracDip: 'deg', lpFracAz: 'deg',
+    lpBrkTop: 'len', lpBrkBot: 'len', lpBrkK: 'none', lpBrkSt: 'none',
+    lpDt0: 'acDt', lpDtM: 'none', lpDtC: 'none',
+    lpDtH1: 'len', lpDtH2: 'len', lpDtH3: 'len',
+    lpDtD1: 'acDt', lpDtD2: 'acDt', lpDtD3: 'acDt',
+    lpQin: 'flow', lpBitMd: 'len', lpBedBoost: 'none', lpQout: 'flow',
+    lpPstd0: 'p', lpPstd: 'p', lpWhook0: 'force', lpWhook: 'force',
+    lpTorque: 'torque', lpTorque0: 'torque',
+    lpTout0: 'temp', lpTout: 'temp', lpTin: 'temp',
+    lmRate: 'volRate', lmVol: 'vol', lmHours: 'hr', lmSgObs: 'rho',
+    lpPlugTop: 'len', lpPlugBot: 'len', lpPlugPad: 'len', lpPlugK: 'none', lpPlugDh: 'dia',
+    /* ---- 掉块 / 坍塌 ---- */
+    cvLag: 'min', cvBitMd: 'len', cvPc: 'rho', cvD50: 'dia',
+    cvShaleTop: 'len', cvShaleBot: 'len', cvOWR: 'none', cvAw: 'none', cvSeal: 'pct',
+    /* ---- 元素录井（wt% 一律无量纲） ---- */
+    elD1: 'len', elD2: 'len', elD3: 'len', elD4: 'len', elD5: 'len', elD6: 'len',
+    /* ---- 起下钻步进 ---- */
+    tripStep: 'len', tripVtrip: 'vel', tripShoeMd: 'len', tripCsgId: 'dia',
+    /* ---- ③ PVT 反解 ---- */
+    i_pvOwr: 'pct', i_pvSal: 'pct', i_pvCl: 'mgL', i_pvAsg: 'none',
+    i_pvRho: 'rho', i_pvT0: 'temp', i_pvT1: 'temp', i_pvP1: 'p',
+    i_pT0: 'temp', i_pP0: 'p', i_pR0: 'rhoSI',
+    i_pT1: 'temp', i_pP1: 'p', i_pR1: 'rhoSI',
+    i_pT2: 'temp', i_pP2: 'p', i_pR2: 'rhoSI',
+    /* ---- ④ 瞬态携岩 ---- */
+    i_trCell: 'len', i_trDt: 'sec', i_trMaxH: 'hr', i_trDrillH: 'hr',
+    i_trPhiMax: 'pct', i_trKdep: 'none', i_trKero: 'vel',
+    i_trCdv: 'none', i_trCev: 'none', i_trCbed: 'pct',
+    /* ---- ④ 实测标定（calibData 是多列文本，按列角色在面板内单独换算） ---- */
+    calibInc: 'none', calibRho: 'rho', calibQ: 'flow'
   };
   function fieldKind(id) { return FIELD[id] || 'none'; }
+
+  /* ★ 把「输入 id → 量纲」表暴露给 ②/③/④ 页引擎与切换逻辑：
+     全站只有这一份 FIELD，任何引擎都通过它做单位换算，保证全局一致。 */
+  window.UNITKIND = FIELD;
 
   /* ==========================================================================
    * 数值型 placeholder 的 SI 基准值
@@ -5317,7 +5475,39 @@ html,body{max-width:100%;}
     i_dc: 3.0, i_rhoc: 2.65, i_rop: 6, i_rpm: 60,
     i_pb: 0, i_slideFrac: 0, i_connTime: 0, i_hcTime: 0,
     i_kinc: 0.40, i_krpm: 0.30, i_tref: 25, i_tbh: 95,
-    i_ecr: 0.60, i_kRot: 0.12, i_kT: 0.020, i_kFric: 1.00, i_kSlip: 1.00
+    i_ecr: 0.60, i_kRot: 0.12, i_kT: 0.020, i_kFric: 1.00, i_kSlip: 1.00,
+    /* ---- ② CTS-DEM 主引擎（与各输入框默认 value 同值，SI 基准） ---- */
+    Dhole: 215.9, MD: 4350, Q: 30, rho: 1.80, rhoc: 2.60,
+    nzN: 6, nzD: 17.46, dPmot: 4.2, dPoth: 0, spp: 36.45, qMot: 6, torque: 12.83,
+    ROP: 8, RPM: 60, dp: 12, dpmax: 25,
+    gel10v: 10, gel10mv: 20, gel30v: 26,
+    eccA: 0.45, ecc0: 0.10, ecc30: 0.35, ecc60: 0.72, ecc90: 0.92,
+    Lseg: 0.4, Tcirc: 102, Tmeas: 65, Tsurf: 20, gradT: 3.0, Tref0: 20,
+    CPmud: 5.88, CTmud: 8.70, Ea_v: 6000,
+    kBed: 0.5, cconcMax: 5, nsKap: 0.20,
+    /* ---- ③ 漏失诊断 / 堵漏 / 掉块 ---- */
+    lpPore: 1.62, lpLeak: 1.95, lpFrac: 2.18,
+    lpShoe: 2400, lpWeakTop: 2700, lpWeakBot: 3050, lpWeakSG: 1.86,
+    lpOv: 2.55, lpSH: 2.70, lpSh: 2.30,
+    lpAzH: 90, lpBiot: 0.85, lpNu: 0.22, lpDip: 8, lpDipAz: 330,
+    lpSt0: 9.6, lpWeakSt: 0.75, lpKan: 1.9,
+    lpFracDip: 75, lpFracAz: 60,
+    lpBrkTop: 0, lpBrkBot: 0, lpBrkK: 0.92, lpBrkSt: 0.85,
+    lpDt0: 86, lpDtM: 0.0001, lpDtC: 2.62,
+    lpBitMd: 0, lpBedBoost: 1.0,
+
+    lpPlugTop: 0, lpPlugBot: 0, lpPlugPad: 50, lpPlugK: 1.4,
+    cvLag: 70, cvBitMd: 3993, cvPc: 1.90, cvD50: 12,
+    cvShaleTop: 3612, cvShaleBot: 4528, cvOWR: 80, cvAw: 0.85, cvSeal: 3,
+    elD1: 0, elD2: 0, elD3: 0, elD4: 0, elD5: 0, elD6: 4337.05,
+    tripStep: 28, tripVtrip: 0.3,
+    /* ---- ③ PVT 反解 / ④ 瞬态携岩 ---- */
+    i_pvOwr: 80, i_pvSal: 19.3, i_pvAsg: 4.20,
+
+    i_trCell: 25, i_trDt: 20, i_trMaxH: 12,
+    i_trPhiMax: 10, i_trKdep: 1.0, i_trKero: 0.02, i_trCdv: 2.5, i_trCev: 1.0, i_trCbed: 52,
+    /* ---- ④ 实测标定 ---- */
+    calibRho: 1.65, calibQ: 22
   };
 
   /* ---- 工具 ---- */
@@ -5474,8 +5664,11 @@ html,body{max-width:100%;}
      同时把数值型 placeholder 换算到当前单位制 */
   function applyLabels(root) {
     root = root || document;
-    var list = root.querySelectorAll('input[id^="i_"]');
+    /* ★ 覆盖全部已注册量纲的输入（① i_* / ② CTS-DEM / ③ PVT·漏失 / ④ 瞬态）——
+       只要 id 在 FIELD 里就跟随单位制切换 label 单位与 placeholder。 */
+    var list = root.querySelectorAll('input[id]');
     Array.prototype.forEach.call(list, function (el) {
+      if (!Object.prototype.hasOwnProperty.call(FIELD, el.id)) return;
       var f = el.parentNode;
       if (f) {
         var lab = f.querySelector('label .u');
@@ -5493,13 +5686,13 @@ html,body{max-width:100%;}
   function updateUnitHint() {
     var el = $('unitHint');
     if (el) {
-      el.innerHTML = UT.isSI()
+el.innerHTML = window.uout(UT.isSI()
         ? '<b>单位制：公制（SI）</b> — 长度/井深 <b>m</b> ｜ 直径/粒径 <b>mm</b> ｜ 密度 <b>g/cm³</b> ｜ '
           + '排量 <b>L/s</b> ｜ 压力 <b>MPa</b> ｜ 温度 <b>°C</b> ｜ ROP <b>m/h</b> ｜ 返速 <b>m/min</b> ｜ '
           + '摩阻 <b>kPa/m</b> ｜ 时间 <b>min</b> ｜ 转速 <b>r/min</b> ｜ 流变 <b>Fann 表盘</b>'
         : '<b>单位制：英制（API / 现场）</b> — 长度/井深 <b>ft</b> ｜ 直径/粒径 <b>in</b> ｜ 密度 <b>ppg</b> ｜ '
           + '排量 <b>gpm</b> ｜ 压力 <b>psi</b> ｜ 温度 <b>°F</b> ｜ ROP <b>ft/h</b> ｜ 返速 <b>ft/min</b> ｜ '
-          + '摩阻 <b>psi/ft</b> ｜ 时间 <b>min</b> ｜ 转速 <b>rpm</b> ｜ 流变 <b>Fann 表盘</b>';
+          + '摩阻 <b>psi/ft</b> ｜ 时间 <b>min</b> ｜ 转速 <b>rpm</b> ｜ 流变 <b>Fann 表盘</b>');
     }
     var ta = $('i_survey');
     if (ta) {
@@ -5507,6 +5700,35 @@ html,body{max-width:100%;}
         ? '0, 0\n500, 8\n1200, 25\n2600, 60\n4200, 88'
         : '0, 0\n1640, 8\n3940, 25\n8530, 60\n13780, 88';
     }
+    /* ② 页 textarea 示例（traj / caliper / bha）与 lpDtH 系列的占位单位 */
+    var TJ = $('traj');
+    if (TJ) {
+      TJ.placeholder = UT.isSI()
+        ? '0 0 0\n35.54 0.58 327.27\n1200 12.5 331.10\n2600 32.0 335.40\n4350 61.2 340.80'
+        : '0 0 0\n116.6 0.58 327.27\n3937 12.5 331.10\n8530 32.0 335.40\n14272 61.2 340.80';
+    }
+    var CA = $('caliper');
+    if (CA) {
+      CA.placeholder = UT.isSI()
+        ? '0 215.9\n1180 243\n1560 208\n3200 262\n4350 214'
+        : '0 8.5\n3871 9.57\n5118 8.19\n10499 10.31\n14272 8.43';
+    }
+    var BA = $('bha');
+    if (BA) {
+      BA.placeholder = UT.isSI()
+        ? '5"HWDP 127 2351.77\n5-1/2"DP 139.7 1978.18\n8"DC 203.2 27.43'
+        : '5"HWDP 5 7715.6\n5-1/2"DP 5.5 6491.3\n8"DC 8 90';
+    }
+    [['lpDtH1', 'TVD '], ['lpDtH2', 'TVD '], ['lpDtH3', 'TVD ']].forEach(function (pr) {
+      var e = $(pr[0]);
+      if (e && /TVD/.test(e.placeholder)) e.placeholder = pr[1] + window.UL('len');
+    });
+    [['lpDtD1', 'Δt '], ['lpDtD2', 'Δt '], ['lpDtD3', 'Δt ']].forEach(function (pr) {
+      var e = $(pr[0]);
+      if (e && /Δt/.test(e.placeholder)) e.placeholder = pr[1] + window.UL('acDt');
+    });
+    /* ④ 实测标定面板：录入格式提示（md / 立压 / 排量 / ROP / 粒径的单位写法随制切换） */
+    if (typeof window.__paintCalibFmt === 'function') { try { window.__paintCalibFmt(); } catch (e) {} }
   }
 
   function paintUsysButtons() {
@@ -5514,33 +5736,194 @@ html,body{max-width:100%;}
     Array.prototype.forEach.call(wrap.querySelectorAll('.ub'), function (b) {
       b.classList.toggle('on', b.getAttribute('data-sys') === (UT.isSI() ? 'si' : 'imp'));
     });
+    /* 常驻徽章：当前单位制（平台头部，四个页签都能看到） */
+    var bg = $('ubadge');
+    if (bg) bg.innerHTML = window.uout('当前单位制：<b>' + UT.sysFull() + '</b>');
+  }
+
+  /* ==================================================================
+   * 全站单位制切换（① ECD/CUT · ② CTS-DEM · ③ 漏失/起下钻/PVT · ④ 瞬态）
+   * ------------------------------------------------------------------
+   * 原则：内核一律 SI；切换 = 「旧显示值 → SI → 新显示值」逐框换算，
+   * 全站只有一份量纲表 window.UNITKIND，任何框不在表内就保持原值
+   * （Fann 读数、井斜角、百分比、无量纲系数两制相同）。
+   * ================================================================== */
+  /* ① 页由 readForm/writeForm 覆盖的 id（避免双重换算）——启动即就绪 */
+  var PANEL1_IDS = ['i_holeSize', 'i_md', 'i_bitPos', 'i_tvd', 'i_pod', 'i_pid', 'i_ptjo',
+    'i_ptjl', 'i_psl', 'i_inc0', 'i_inc1', 'i_q', 'i_pumpD', 'i_pumpSpm', 'i_rho',
+    'i_th600', 'i_th300', 'i_th200', 'i_th100', 'i_th6', 'i_th3', 'i_dc', 'i_rhoc',
+    'i_rop', 'i_rpm', 'i_pb', 'i_slideFrac', 'i_connTime', 'i_hcTime', 'i_alphaT',
+    'i_betaP', 'i_tref', 'i_tbh', 'i_shoeMd', 'i_prevCsgId', 'i_ecdMd', 'i_kinc',
+    'i_krpm', 'i_ecr', 'i_kRot', 'i_kT', 'i_kFric', 'i_kSlip',
+    'i_refEcd', 'i_refClean', 'i_refCut', 'i_refVf'];
+
+  /* ④ 实测标定面板 textarea（#calibData）的列角色：
+     md, ecd, cut, spp, q, rop, rho, dc [, buTime]
+     · ecd / rho 是 SG（英制录入 ppg）——按 rho 量纲（g/cm³ ↔ ppg）换算；
+     · cut / buTime 是 min，两种单位制相同，不换算；
+     · 该数组同时供④面板生成示例文本使用（window.CALIB_KINDS 单一来源）。 */
+  var CALIB_KINDS = ['len', 'rho', 'none', 'p', 'flow', 'rop', 'rho', 'dia', 'none'];
+  window.CALIB_KINDS = CALIB_KINDS;
+
+  /* ---- ②/③/④ 页输入框：旧制 → SI 快照 / SI → 新制写回 ---- */
+  var swapCache = {};
+  function snapOtherInputs() {
+    var UK = window.UNITKIND || {};
+    var skip = {};
+    if (PANEL1_IDS) PANEL1_IDS.forEach(function (id) { skip[id] = 1; });
+    swapCache = {};
+    Object.keys(UK).forEach(function (id) {
+      if (skip[id]) return;
+      var e = $(id); if (!e) return;
+      var raw = e.value;
+      if (raw === '' || raw === null || raw === undefined) return;
+      var x = parseFloat(raw);
+      if (!isFinite(x)) return;
+      var k = UK[id];
+      if (k === 'none') return;
+      var b = UT.toBase(k, x);                 /* 旧制显示值 → SI */
+      if (b !== null && typeof b === 'number' && isFinite(b)) swapCache[id] = b;
+    });
+  }
+  function restoreOtherInputs() {
+    Object.keys(swapCache).forEach(function (id) {
+      var e = $(id); if (!e) return;
+      var k = (window.UNITKIND || {})[id] || 'none';
+      var d = UT.toDispClean(k, swapCache[id]);   /* SI → 新制显示值 */
+      if (d !== null && d !== undefined && isFinite(d)) e.value = d;
+    });
+  }
+
+  /* ---- textarea（井斜 / 井径 / 钻具表）：按列角色快照 SI 再原位写回 ---- */
+  var taCache = [];
+  /* ④ 实测标定 #calibData 的专用快照（列可留空，按列号换算，见 snapTextareas 内说明） */
+  var calibCache = null;
+  /* fromSys：快照时输入框里的数值属于哪个单位制（切换时 = 切换前的制；
+     启动初始化时 HTML 硬编码值一律是 SI ⇒ 传 0） */
+  function snapTextareas(fromSys) {
+    taCache = [];
+    calibCache = null;
+    function snap(el, kinds) {
+      if (!el) return;
+      var toks = [], seq = 0;
+      String(el.value).split(/\n/).forEach(function (ln) {
+        var idx = 0;
+        ln.replace(/-?\d+\.?\d*/g, function (t) {
+          var k = kinds[idx] || null; idx++;
+          var v = parseFloat(t);
+          if (k && isFinite(v)) {
+            var b = UT.toBase(k, v, fromSys);   /* fromSys 显示值 → SI */
+            if (b !== null && typeof b === 'number' && isFinite(b)) toks.push({ seq: seq, k: k, si: b });
+          }
+          seq++;
+          return t;
+        });
+      });
+      if (toks.length) taCache.push({ el: el, toks: toks });
+    }
+    snap($('traj'), ['len']);
+    snap($('caliper'), ['len', 'dia']);
+    snap($('bha'), ['dia', 'len', 'dia']);
+    /* ★ ④ 实测标定 #calibData【不能】走上面的通用 snap：它的列允许留空
+       （"留空列沿用①页当前值"是文档化特性），而通用 snap 按「数字出现序号」
+       分配列角色 —— 空列不产生数字，其后所有列的角色整体错位一位
+       （实测：q 被按 MPa→psi 换算、ROP 被按 L/s→gpm 换算…）。
+       这里改按【列号】换算，由面板专用函数 window.__calibSnapText 实现。 */
+    if (typeof window.__calibSnapText === 'function') {
+      try { calibCache = window.__calibSnapText(fromSys); } catch (e) { calibCache = null; }
+    }
+  }
+  function restoreTextareas() {
+    taCache.forEach(function (rec) {
+      var seq = 0;
+      rec.el.value = String(rec.el.value).replace(/-?\d+\.?\d*/g, function (t) {
+        var s = seq++;
+        for (var j = 0; j < rec.toks.length; j++) {
+          if (rec.toks[j].seq === s) {
+            var d = UT.toDispClean(rec.toks[j].k, rec.toks[j].si);
+            return (d === null || !isFinite(d)) ? t : String(d);
+          }
+        }
+        return t;                      /* 未被快照的数字（井斜/方位/名称）原样保留 */
+      });
+    });
+    if (calibCache && typeof window.__calibRestoreText === 'function') {
+      try { window.__calibRestoreText(calibCache); } catch (e) {}
+    }
+    calibCache = null;
+  }
+
+  /* ★ 启动时把「HTML 硬编码的 SI 值」换算成当前单位制（仅英制恢复时调用）。
+     输入框 value / textarea 内容在源码里一律是 SI 基准；用户改过的值随刷新
+     丢失（②/③/④ 页无本地存档），故此处直接按 SI 解释是安全的。 */
+  function bootHardcodedToImp() {
+    var UK = window.UNITKIND || {};
+    var skip = {};
+    PANEL1_IDS.forEach(function (id) { skip[id] = 1; });
+    Object.keys(UK).forEach(function (id) {
+      if (skip[id]) return;
+      var e = $(id); if (!e) return;
+      var raw = e.value;
+      if (raw === '' || raw === null || raw === undefined) return;
+      var x = parseFloat(raw);
+      if (!isFinite(x)) return;
+      var k = UK[id];
+      if (k === 'none') return;
+      var d = UT.toDispClean(k, x);            /* SI 硬编码 → 英制显示 */
+      if (d !== null && d !== undefined && isFinite(d)) e.value = d;
+    });
+    snapTextareas(0);                          /* textarea 内容按 SI 快照 */
+    restoreTextareas();
   }
 
   /* ★ 一键切换单位制：读出现有 SI 参数 → 换系统 → 按新单位写回 → 重算 */
   function switchUnits(to) {
     var target = (to === 'imp' || to === 1) ? 1 : 0;
     if (target === UT.sys()) { paintUsysButtons(); return; }
-    var si = readForm();                 /* 当前显示单位 → SI 基准 */
+    var si = readForm();                 /* ① 页：当前显示单位 → SI 基准 */
+    snapOtherInputs();                   /* ②/③/④ 页：旧制 → SI 快照 */
+    snapTextareas(UT.sys());             /* textarea：旧制 → SI 快照 */
     UT.setSys(target);
     ST.set(LSKEY_USYS, UT.isSI() ? 'si' : 'imp');
-    writeForm(si);                       /* SI 基准 → 新显示单位 */
+    writeForm(si);                       /* ① 页：SI 基准 → 新显示单位 */
+    restoreOtherInputs();                /* ②/③/④ 页：SI → 新显示 */
+    restoreTextareas();                  /* textarea：SI → 新显示 */
     applyLabels();
     updateUnitHint();
     paintUsysButtons();
-    if (window.RUNX && typeof window.RUNX.run === 'function') window.RUNX.run();
-    toast('已切换到' + UT.sysFull() + '。输入与结果已同步换算。');
+    /* ---- 重算各引擎（单位换了，全部结果联动） ---- */
+    if (window.RUNX && typeof window.RUNX.run === 'function') { try { window.RUNX.run(); } catch (e) {} }
+    if (typeof window.runCalc === 'function') { try { window.runCalc(); } catch (e) { console.warn('[usys runCalc]', e); } }
+    if (typeof window.runTrip === 'function') { try { window.runTrip(); } catch (e) { console.warn('[usys runTrip]', e); } }
+    /* ---- 按需渲染的卡片：已经输出过的，按新单位制重绘 ----
+       （否则会出现「输入已是新单位、输出还是旧单位」的半套状态） */
+    if (window.__calibReady) { try { window.__calibReady(); } catch (e) {} }      /* ④ 标定（输出卡展开才重跑） */
+    if (window.ECDDiag && typeof window.ECDDiag.render === 'function') {
+      try {
+        var dOut = document.getElementById('dfgOut');
+        if (dOut && dOut.dataset.used === '1') window.ECDDiag.render('diag');   /* DFG 差异诊断 */
+      } catch (e) {}
+    }
+    if (window.__ctsPVT && window.__ctsPVTResult) { try { window.__ctsPVT.run(false); } catch (e) {} }  /* E1 组成法 α/β */
+    if (typeof window.pvtCalib === 'function') {
+      try {
+        var pc = document.getElementById('pvtCalOut');
+        if (pc && pc.dataset.used === '1') window.pvtCalib();                   /* E1b 两点反算 */
+      } catch (e) {}
+    }
+    toast('已切换到' + UT.sysFull() + '。全站输入与结果已同步换算。');
   }
 
   /* ---- 初始化下拉 ---- */
   function initSelects() {
     var sh = $('i_shape');
-    sh.innerHTML = ['cube', 'tetra', 'sphere'].map(function (k) {
+sh.innerHTML = window.uout(['cube', 'tetra', 'sphere'].map(function (k) {
       return '<option value="' + k + '">' + esc(K.SHAPE_TXT[k]) + '</option>';
-    }).join('');
+    }).join(''));
     var ms = $('i_mudSys');
-    ms.innerHTML = K.MUDSYS_KEYS.map(function (k) {
+ms.innerHTML = window.uout(K.MUDSYS_KEYS.map(function (k) {
       return '<option value="' + k + '">' + esc(K.MUDSYS[k].name) + '</option>';
-    }).join('');
+    }).join(''));
   }
 
   /* ---- 卡片折叠 ---- */
@@ -5707,6 +6090,9 @@ html,body{max-width:100%;}
     /* 单位系统 */
     UT: UT, fieldKind: fieldKind, applyLabels: applyLabels,
     updateUnitHint: updateUnitHint, switchUnits: switchUnits,
+    bootHardcodedToImp: bootHardcodedToImp,
+    snapOtherInputs: snapOtherInputs, restoreOtherInputs: restoreOtherInputs,
+    snapTextareas: snapTextareas, restoreTextareas: restoreTextareas,
     paintUsysButtons: paintUsysButtons,
     altOn: altOn, setAlt: setAlt, paintAltBox: paintAltBox,
     /* 存储（沙箱降级） */
@@ -5779,19 +6165,19 @@ html,body{max-width:100%;}
       ? '<b style="color:var(--ok)">开</b> → 井底 TVD 将落在 ' + dvu('len', tvdIn, 1)
       : '<b style="color:var(--tx3)">关</b> → 井底 TVD 完全由剖面决定';
     if (!on || !rows.length) {
-      el.innerHTML = '当前井斜来源：<b>线性简化</b>（A 区「起始井斜 → 井底井斜」）'
-        + '　｜　输入 TVD：' + tvdTxt + '　｜　归一化：' + normTxt;
+el.innerHTML = window.uout('当前井斜来源：<b>线性简化</b>（A 区「起始井斜 → 井底井斜」）'
+        + '　｜　输入 TVD：' + tvdTxt + '　｜　归一化：' + normTxt);
       return;
     }
     /* 井斜表深度列按当前单位制显示，判断是否覆盖井底时先换算到基准 */
     var lastMdDisp = rows[rows.length - 1][0], lastInc = rows[rows.length - 1][1];
     var lastMd = UT.toBase('len', lastMdDisp);
     var short = (md !== null && lastMd < md - 1);
-    el.innerHTML = '当前井斜来源：<b>井斜表</b>（' + rows.length + ' 行，末行 MD = '
+el.innerHTML = window.uout('当前井斜来源：<b>井斜表</b>（' + rows.length + ' 行，末行 MD = '
       + dvu('len', lastMd, 1) + ' / ' + fin(lastInc, 1) + '°）'
       + (short ? '　<b style="color:var(--wn)">⚠ 未覆盖井底 MD ' + dvu('len', md, 1)
         + '，该段按 ' + fin(lastInc, 1) + '° 外推</b>' : '')
-      + '　｜　输入 TVD：' + tvdTxt + '　｜　归一化：' + normTxt;
+      + '　｜　输入 TVD：' + tvdTxt + '　｜　归一化：' + normTxt);
   }
 
   /* ---------------- 主入口 ---------------- */
@@ -5811,13 +6197,13 @@ html,body{max-width:100%;}
     var res;
     try { res = K.calc(p); }
     catch (e) {
-      $('results').innerHTML = '<div class="warnbar d">计算出错：' + esc(e.message) + '</div>';
+$('results').innerHTML = window.uout('<div class="warnbar d">计算出错：' + esc(e.message) + '</div>');
       return;
     }
     LAST = res;
     renderWarn(res);
     if (!res.ok) {
-      $('results').innerHTML = '<div class="warnbar d"><b>无法计算</b><br>' + esc(res.msg) + '</div>';
+$('results').innerHTML = window.uout('<div class="warnbar d"><b>无法计算</b><br>' + esc(res.msg) + '</div>');
       return;
     }
     var html = '';
@@ -5831,7 +6217,7 @@ html,body{max-width:100%;}
     html += secSens(p, res);
     html += secAttr(res);
     html += secDiag(res);
-    $('results').innerHTML = html;
+$('results').innerHTML = window.uout(html);
     bindTabs();
     drawSparks(res);
   }
@@ -5850,15 +6236,15 @@ html,body{max-width:100%;}
     if (res.warn && res.warn.length) {
       var d = document.createElement('div');
       d.className = 'warnbar';
-      d.innerHTML = '<b>口径提示</b><ul>' + res.warn.map(function (w) {
+d.innerHTML = window.uout('<b>口径提示</b><ul>' + res.warn.map(function (w) {
         return '<li>' + esc(w) + '</li>';
-      }).join('') + '</ul>';
+      }).join('') + '</ul>');
       wb.appendChild(d);
     }
     if (res.ecdAnomaly) {
       var e = document.createElement('div');
       e.className = 'warnbar d';
-      e.innerHTML = '<b>结果异常</b><br>' + esc(res.ecdAnomaly);
+e.innerHTML = window.uout('<b>结果异常</b><br>' + esc(res.ecdAnomaly));
       wb.appendChild(e);
     }
     for (var j = 0; j < keeps.length; j++) wb.appendChild(keeps[j]);   /* 常驻条回到位 */
@@ -6456,7 +6842,7 @@ html,body{max-width:100%;}
     /* 图例 */
     s += '<text x="' + (W - mr) + '" y="' + (mt + 10) + '" fill="#4dd0c1" font-size="10.5" text-anchor="end">— ECD (' + esc(lb('ecd')) + ')</text>';
     s += '<text x="' + (W - mr) + '" y="' + (mt + 24) + '" fill="#f2b230" font-size="10.5" text-anchor="end">-- CUT time (h)</text>';
-    svg.innerHTML = s;
+svg.innerHTML = window.uout(s);
   }
 
   /* ---------------- Tab 切换 ---------------- */
@@ -6818,6 +7204,9 @@ html,body{max-width:100%;}
     /* ★ 恢复上次选择的单位制（在写表单之前，避免先按公制写一遍再换算） */
     var saved = ST.get(U.LSKEY_USYS);
     if (saved === 'imp' || saved === 'si') UT.setSys(saved);
+    /* ★ ②/③/④ 页输入框与 textarea 的 HTML 硬编码值一律是 SI 基准；
+       若恢复的是英制，启动时就要把它们换算成英制，杜绝「半套英制」。 */
+    if (!UT.isSI()) { U.bootHardcodedToImp(); }
 
     /* ★ 单位制切换按钮 */
     var wrap = $('usys');
@@ -6903,7 +7292,37 @@ html,body{max-width:100%;}
     i_th600: 50, i_th300: 33, i_th200: 26, i_th100: 18, i_th6: 6, i_th3: 5,
     i_dc: 3.0, i_rhoc: 2.65, i_rop: 6, i_rpm: 60, i_pb: 0, i_slideFrac: 0,
     i_connTime: 0, i_hcTime: 0, i_tref: 25, i_tbh: 95,
-    i_ecr: 0.60, i_kRot: 0.12, i_kT: 0.020, i_kFric: 1.00, i_kSlip: 1.00
+    i_ecr: 0.60, i_kRot: 0.12, i_kT: 0.020, i_kFric: 1.00, i_kSlip: 1.00,
+    /* ---- ② CTS-DEM 主引擎（与各输入框默认 value 同值，SI 基准） ---- */
+    Dhole: 215.9, MD: 4350, Q: 30, rho: 1.80, rhoc: 2.60,
+    nzN: 6, nzD: 17.46, dPmot: 4.2, dPoth: 0, spp: 36.45, qMot: 6, torque: 12.83,
+    ROP: 8, RPM: 60, dp: 12, dpmax: 25,
+    gel10v: 10, gel10mv: 20, gel30v: 26,
+    eccA: 0.45, ecc0: 0.10, ecc30: 0.35, ecc60: 0.72, ecc90: 0.92,
+    Lseg: 0.4, Tcirc: 102, Tmeas: 65, Tsurf: 20, gradT: 3.0, Tref0: 20,
+    CPmud: 5.88, CTmud: 8.70, Ea_v: 6000,
+    kBed: 0.5, cconcMax: 5, nsKap: 0.20,
+    /* ---- ③ 漏失诊断 / 堵漏 / 掉块 ---- */
+    lpPore: 1.62, lpLeak: 1.95, lpFrac: 2.18,
+    lpShoe: 2400, lpWeakTop: 2700, lpWeakBot: 3050, lpWeakSG: 1.86,
+    lpOv: 2.55, lpSH: 2.70, lpSh: 2.30,
+    lpAzH: 90, lpBiot: 0.85, lpNu: 0.22, lpDip: 8, lpDipAz: 330,
+    lpSt0: 9.6, lpWeakSt: 0.75, lpKan: 1.9,
+    lpFracDip: 75, lpFracAz: 60,
+    lpBrkTop: 0, lpBrkBot: 0, lpBrkK: 0.92, lpBrkSt: 0.85,
+    lpDt0: 86, lpDtM: 0.0001, lpDtC: 2.62,
+    lpBitMd: 0, lpBedBoost: 1.0,
+
+    lpPlugTop: 0, lpPlugBot: 0, lpPlugPad: 50, lpPlugK: 1.4,
+    cvLag: 70, cvBitMd: 3993, cvPc: 1.90, cvD50: 12,
+    cvShaleTop: 3612, cvShaleBot: 4528, cvOWR: 80, cvAw: 0.85, cvSeal: 3,
+    elD1: 0, elD2: 0, elD3: 0, elD4: 0, elD5: 0, elD6: 4337.05,
+    tripStep: 28, tripVtrip: 0.3,
+    /* ---- ③ PVT 反解 / ④ 瞬态携岩 ---- */
+    i_pvOwr: 80, i_pvSal: 19.3, i_pvAsg: 4.20,
+
+    i_trCell: 25, i_trDt: 20, i_trMaxH: 12,
+    i_trPhiMax: 10, i_trKdep: 1.0, i_trKero: 0.02, i_trCdv: 2.5, i_trCev: 1.0, i_trCbed: 52
   };
 
   function nz(v) {
@@ -6976,10 +7395,11 @@ html,body{max-width:100%;}
   /* ------------------------------------------------------------------ 渲染 */
   function render(kind) {
     var out = $('dfgOut'); if (!out) return;
+    out.dataset.used = '1';               /* 标记已输出过：主「计算」/单位制切换据此联动刷新 */
     try { renderInner(kind, out); }
     catch (e) {
-      out.innerHTML = '<div class="warnbar d"><b>诊断模块出错（不影响主计算）</b><br>'
-        + esc(e && e.message ? e.message : e) + '</div>';
+out.innerHTML = window.uout('<div class="warnbar d"><b>诊断模块出错（不影响主计算）</b><br>'
+        + esc(e && e.message ? e.message : e) + '</div>');
     }
   }
 
@@ -7147,7 +7567,7 @@ html,body{max-width:100%;}
       + '并高估返速。建议按井径曲线填「实际井眼直径」。</li>'
       + '</ul></div>';
 
-    out.innerHTML = html;
+out.innerHTML = window.uout(html);
   }
 
   /* ------------------------------------------------------------------ 事件 */
@@ -7170,6 +7590,17 @@ html,body{max-width:100%;}
         setTimeout(function () { render('diag'); }, 0);
       }
     });
+    /* 单位制切换后差值表口径变化 → 重绘（与瞬态模块同款；由 switchUnits 统一换算输入） */
+    try {
+      Array.prototype.forEach.call(document.querySelectorAll('.ub'), function (u) {
+        u.addEventListener('click', function () {
+          var card2 = $('c-dfg'), o2 = $('dfgOut');
+          if (card2 && card2.classList.contains('open') && o2 && o2.dataset.used === '1') {
+            setTimeout(function () { render('diag'); }, 0);
+          }
+        });
+      });
+    } catch (e) {}
     var o = $('dfgOut');
     if (o) o.addEventListener('click', function (e) {
       var t = e.target;
@@ -7216,6 +7647,7 @@ html,body{max-width:100%;}
   'use strict';
   var K = window.ECDKit;
   var $ = function (id) { return document.getElementById(id); };
+  var UT = window.ECDUnits;               /* 单位制（SI ⇄ 英制） */
   function nz(v) {
     if (v === null || v === undefined || v === '') return null;
     var x = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
@@ -7245,20 +7677,34 @@ html,body{max-width:100%;}
     i_trCell: 25, i_trDt: 20, i_trMaxH: 12, i_trStart: 'empty', i_trConn: false, i_trDrillH: '',
     i_trPhiMax: 10, i_trKdep: 1.0, i_trKero: 0.02, i_trCdv: 2.5, i_trCev: 1.0, i_trCbed: 52
   };
+  /* ★ 单位感知读数（显示值 → SI 基准）；未填返回 null */
+  function nzu(id) {
+    var e = $(id); if (!e) return null;
+    var raw = e.value; if (raw === '' || raw === null || raw === undefined) return null;
+    var x = parseFloat(raw); if (!isFinite(x)) return null;
+    var UK = (window.UNITKIND) || {};
+    var k = UK[id] || 'none';
+    if (k === 'none') return x;
+    var b = UT.toBase(k, x);
+    return (b === null || typeof b !== 'number' || !isFinite(b)) ? null : b;
+  }
   function readOpt() {
+    var vCell = nzu('i_trCell'), vDt = nzu('i_trDt'), vMaxH = nzu('i_trMaxH');
+    var vPhi = nzu('i_trPhiMax'), vKdep = nzu('i_trKdep'), vKero = nzu('i_trKero');
+    var vCdv = nzu('i_trCdv'), vCev = nzu('i_trCev'), vCbed = nzu('i_trCbed');
     return {
-      cellLen: nz($('i_trCell') && $('i_trCell').value) || DEF.i_trCell,
-      dtSec: nz($('i_trDt') && $('i_trDt').value) || DEF.i_trDt,
-      maxHour: nz($('i_trMaxH') && $('i_trMaxH').value) || DEF.i_trMaxH,
-      drillHours: nz($('i_trDrillH') && $('i_trDrillH').value),
+      cellLen: (vCell === null ? DEF.i_trCell : vCell),
+      dtSec: (vDt === null ? DEF.i_trDt : vDt),
+      maxHour: (vMaxH === null ? DEF.i_trMaxH : vMaxH),
+      drillHours: nzu('i_trDrillH'),
       start: ($('i_trStart') && $('i_trStart').value) || 'empty',
       connPumpOff: !!($('i_trConn') && $('i_trConn').checked),
-      phiSusMax: (nz($('i_trPhiMax') && $('i_trPhiMax').value) || DEF.i_trPhiMax) / 100,
-      kDep: (nz($('i_trKdep') && $('i_trKdep').value) === null ? DEF.i_trKdep : nz($('i_trKdep').value)),
-      kEro: (nz($('i_trKero') && $('i_trKero').value) === null ? DEF.i_trKero : nz($('i_trKero').value)),
-      cdvRatio: nz($('i_trCdv') && $('i_trCdv').value) || DEF.i_trCdv,
-      ceRatio: nz($('i_trCev') && $('i_trCev').value) || DEF.i_trCev,
-      bedFrac: (nz($('i_trCbed') && $('i_trCbed').value) || DEF.i_trCbed) / 100
+      phiSusMax: ((vPhi === null ? DEF.i_trPhiMax : vPhi)) / 100,
+      kDep: (vKdep === null ? DEF.i_trKdep : vKdep),
+      kEro: (vKero === null ? DEF.i_trKero : vKero),
+      cdvRatio: (vCdv === null ? DEF.i_trCdv : vCdv),
+      ceRatio: (vCev === null ? DEF.i_trCev : vCev),
+      bedFrac: ((vCbed === null ? DEF.i_trCbed : vCbed)) / 100
     };
   }
   /* 最近一次主界面计算的参数包（SI 基准值） */
@@ -7277,22 +7723,22 @@ html,body{max-width:100%;}
     var out = $('tranOut'); if (!out) return;
     var p = lastP(true);
     if (!p) {
-      out.innerHTML = '<div class="note d">主计算尚未成功运行 —— 请先在上方填好参数并点「计算」，再运行瞬态仿真。</div>';
+out.innerHTML = window.uout('<div class="note d">主计算尚未成功运行 —— 请先在上方填好参数并点「计算」，再运行瞬态仿真。</div>');
       return;
     }
     var opt = readOpt();
-    if (opt.cellLen < 2 || opt.cellLen > 200) { out.innerHTML = '<div class="note d">单元格长度请在 2 ~ 200 m 之间。</div>'; return; }
+    if (opt.cellLen < 2 || opt.cellLen > 200) { out.innerHTML = '<div class="note d">单元格长度请在 ' + window.UU('len', 2) + ' ~ ' + window.UU('len', 200) + ' ' + window.UL('len') + ' 之间。</div>'; return; }
     var t0 = (window.performance && performance.now) ? performance.now() : Date.now();
     var res = null, err = null;
     try { res = K.transient(p, opt); } catch (e) { err = e; }
     var ms = ((window.performance && performance.now) ? performance.now() : Date.now()) - t0;
     if (err) {
-      out.innerHTML = '<div class="note d"><b>瞬态求解异常：</b>' + esc(err.message || String(err))
-        + '<br>可尝试：把「单元格长度」调大（如 40 m）、把「最长模拟时长」调小，或把时间步上限调小。</div>';
+out.innerHTML = window.uout('<div class="note d"><b>瞬态求解异常：</b>' + esc(err.message || String(err))
+        + '<br>可尝试：把「单元格长度」调大（如 40 m）、把「最长模拟时长」调小，或把时间步上限调小。</div>');
       return;
     }
     if (!res || !res.ok) {
-      out.innerHTML = '<div class="note d">瞬态求解未成功：' + esc((res && res.msg) || '未知原因') + '</div>';
+out.innerHTML = window.uout('<div class="note d">瞬态求解未成功：' + esc((res && res.msg) || '未知原因') + '</div>');
       return;
     }
     LAST = { res: res, ms: ms };
@@ -7393,7 +7839,7 @@ html,body{max-width:100%;}
       + '<br>★ 本引擎是<b>物理模型</b>而非 DFG 的复刻：它的价值在于「给出机理一致的瞬态过程 + 可标定系数」，'
       + '不要期望与 DFG 逐位相同。</div>';
 
-    out.innerHTML = h;
+out.innerHTML = window.uout(h);
     paintCharts(q);
   }
 
@@ -7463,7 +7909,7 @@ html,body{max-width:100%;}
       s += '<text x="' + (lx + 14) + '" y="' + (mt - 14) + '" fill="#a9bacd" font-size="10.5">' + esc(se.label) + '</text>';
       lx += 18 + String(se.label).length * 8.2;
     });
-    svg.innerHTML = s;
+svg.innerHTML = window.uout(s);
   }
 
   function paintCharts(q) {
@@ -7530,7 +7976,7 @@ html,body{max-width:100%;}
   function init() {
     try { bind(); applyDef(); } catch (e) {
       var o = $('tranOut');
-      if (o) o.innerHTML = '<div class="note d">瞬态卡片初始化失败：' + esc(e.message || String(e)) + '</div>';
+if (o) o.innerHTML = window.uout('<div class="note d">瞬态卡片初始化失败：' + esc(e.message || String(e)) + '</div>');
     }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 0); });
@@ -7640,7 +8086,7 @@ html,body{max-width:100%;}
       if (bad) h += '<tr><td colspan="10" style="color:var(--bd)">⚠ 第 ' + (i + 1) + ' 行：外径 ≥ 井眼直径 —— 几何不成立，该段会被内核判为「旁通」并计入警告。</td></tr>';
     });
     h += '</tbody></table></div>';
-    wrap.innerHTML = h;
+wrap.innerHTML = window.uout(h);
     info(acc, md);
     save();
   }
@@ -7656,9 +8102,9 @@ html,body{max-width:100%;}
     if (md > 0 && L >= md - 1) notes.push('BHA 总长已达井深 —— 井口以上没有钻杆段了，请核对。');
     notes.push('顺序 = 自<b>井底</b>向井口（与 DFG String 一致）；BHA 之上自动用 A 区钻杆参数。');
     notes.push('改完表格后点「<b>计算</b>」生效；逐段明细表会标出每段用的钻具。');
-    el.innerHTML = 'BHA 总长 <b>' + fin2(L) + ' m</b>'
+el.innerHTML = window.uout('BHA 总长 <b>' + fin2(L) + ' m</b>'
       + (md > 0 ? '，覆盖 MD ' + fin2(Math.max(0, md - L)) + ' ~ ' + fin2(md) : '')
-      + '。<br>' + notes.map(function (n) { return '· ' + n; }).join('<br>');
+      + '。<br>' + notes.map(function (n) { return '· ' + n; }).join('<br>'));
   }
 
   /* ---- 事件绑定（委托，行增删改都走这里） ---- */
@@ -8097,13 +8543,13 @@ html,body{max-width:100%;}
     var ov = document.createElement('div');
     ov.id = 'bhaImpOv';
     ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:none;align-items:center;justify-content:center';
-    ov.innerHTML = '<div style="background:var(--bg2,#fff);color:var(--tx1,#222);max-width:900px;width:94%;max-height:88vh;overflow:auto;'
+ov.innerHTML = window.uout('<div style="background:var(--bg2,#fff);color:var(--tx1,#222);max-width:900px;width:94%;max-height:88vh;overflow:auto;'
       + 'border-radius:12px;padding:16px 18px;box-shadow:0 8px 40px rgba(0,0,0,.35)">'
       + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'
       + '<b style="font-size:15px">导入钻具组合（Excel / CSV）</b>'
       + '<button type="button" id="bhaImpX" style="border:0;background:none;font-size:18px;cursor:pointer;color:inherit">✕</button></div>'
       + '<div id="bhaImpBody" style="font-size:13px;line-height:1.7"></div>'
-      + '</div>';
+      + '</div>');
     (document.getElementById('pane-ecd')||document.body).appendChild(ov);
     ov.addEventListener('click', function (ev) {
       if (ev.target === ov || ev.target.id === 'bhaImpX') ov.style.display = 'none';
@@ -8118,7 +8564,7 @@ html,body{max-width:100%;}
     var b = $('bhaImpBody'), sh = DATA.sheets[CUR];
     var header = detectHeader(sh.rows) || guessColumns(sh.rows);
     if (!header) {
-      b.innerHTML = '<div class="note">没能在文件里识别出钻具表 —— 需要至少一列是钻具名称（钻杆/钻铤/螺杆…），一列是长度。请核对文件。</div>';
+b.innerHTML = window.uout('<div class="note">没能在文件里识别出钻具表 —— 需要至少一列是钻具名称（钻杆/钻铤/螺杆…），一列是长度。请核对文件。</div>');
       return;
     }
     var nCol = 0; sh.rows.forEach(function (r) { nCol = Math.max(nCol, r.length); });
@@ -8162,7 +8608,7 @@ html,body{max-width:100%;}
             + '<td style="padding:2px 6px">' + s.qty + '</td></tr>';
         }).join('')
       + '</tbody></table></div>';
-    b.innerHTML = ''
+b.innerHTML = window.uout(''
       + '<div style="margin-bottom:6px">工作表：' + sel
       + '　·　表头识别：' + (header.idx >= 0 ? '第 ' + (header.idx + 1) + ' 行' : '无表头（按数值特征自动猜列）')
       + '　·　共识别 <b>' + segs.length + '</b> 段，总长 <b>' + total.toFixed(1) + ' m</b>（假定 mm / m，可在下面改列映射）</div>'
@@ -8171,7 +8617,7 @@ html,body{max-width:100%;}
       + '<div style="margin-top:10px;display:flex;gap:10px">'
       + '<button type="button" id="bhaImpOk" style="padding:6px 18px;cursor:pointer;border-radius:8px;border:1px solid #888;background:var(--ac,#3b82f6);color:#fff;font-weight:600">✓ 导入到 BHA 表格</button>'
       + '<button type="button" id="bhaImpCancel" style="padding:6px 14px;cursor:pointer;border-radius:8px;border:1px solid #888;background:none;color:inherit">取消</button>'
-      + '</div>';
+      + '</div>');
 
     $('bhaImpSheet').addEventListener('change', function () { CUR = +this.value; show(); });
     b.querySelectorAll('select[data-f]').forEach(function (s) {
@@ -8200,7 +8646,7 @@ html,body{max-width:100%;}
             + ' mm　长 ' + s.len.toFixed(2) + ' m × ' + s.qty + '</td></tr>';
         }).join('')
       + '</tbody></table></div>';
-    $('bhaImpPrev').innerHTML = pv;
+$('bhaImpPrev').innerHTML = window.uout(pv);
     rerender._map = map;
   }
 
@@ -8249,7 +8695,7 @@ html,body{max-width:100%;}
         show();
       }).catch(function (e) {
         var ov = ensureOverlay(); ov.style.display = 'flex';
-        $('bhaImpBody').innerHTML = '<div class="note">导入失败：' + esc(e && e.message ? e.message : String(e)) + '</div>';
+$('bhaImpBody').innerHTML = window.uout('<div class="note">导入失败：' + esc(e && e.message ? e.message : String(e)) + '</div>');
       });
     });
   }
@@ -8269,13 +8715,29 @@ html,body{max-width:100%;}
 window.pvtCalib = function(){
   var out = document.getElementById('pvtCalOut');
   if(!out) return;
+  if (out) out.dataset.used = '1';   /* 标记已输出过：单位制切换时据此联动重绘 */
+  /* ★ 单位感知：按 window.UNITKIND 把「当前单位制显示值」换算为 SI 基准值。
+     cur('i_tref') / cur('rho') 等跨页读取同样走 UNITKIND，全站一致。 */
+  function ubase(id, v){ var UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+    var k=UK[id]||'none'; if(k==='none') return v;
+    var U=(typeof window!=='undefined'&&window.ECDUnits); if(!U) return v;
+    var b=U.toBase(k,v); return (b===null||typeof b!=='number'||!isFinite(b))?NaN:b; }
   function num(id){ var e=document.getElementById(id); if(!e) return NaN;
     var t=String(e.value).trim(); if(t==='') return NaN;
-    var v=parseFloat(t); return isFinite(v)?v:NaN; }
+    var v=parseFloat(t); if(!isFinite(v)) return NaN;
+    return ubase(id, v); }
   function cur(id){ var e=document.getElementById(id); if(!e) return NaN;
-    var v=parseFloat(e.value); return isFinite(v)?v:NaN; }
+    var v=parseFloat(e.value); if(!isFinite(v)) return NaN;
+    return ubase(id, v); }
+  /* ★ 单位感知写回：val 是 SI 基准值，按当前单位制换算后写入输入框 */
   function put(id,val){ var e=document.getElementById(id); if(!e) return;
-    e.value=val;
+    var UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+    var k=UK[id]||'none'; var out2=val;
+    if(k!=='none' && typeof val==='number' && isFinite(val)){
+      var U=(typeof window!=='undefined'&&window.ECDUnits);
+      if(U){ var d=U.toDispClean(k,val); out2=(d===null||d===undefined||!isFinite(d))?val:d; }
+    }
+    e.value=out2;
     e.dispatchEvent(new Event('input',{bubbles:true}));
     e.dispatchEvent(new Event('change',{bubbles:true})); }
   var BAD='color:#c0392b';
@@ -8284,7 +8746,7 @@ window.pvtCalib = function(){
   var P0=num('i_pP0'); if(!isFinite(P0)) P0=0.101;
   var r0=num('i_pR0'); if(!isFinite(r0)){ var sg=cur('rho'); if(isFinite(sg)&&sg>0) r0=sg*1000; }
   if(!isFinite(r0)||r0<=0){
-    out.innerHTML='<span style="'+BAD+'">缺参考密度 ρ₀：填「参考点 ρ₀」，或先在 ② 填地面密度</span>'; return; }
+out.innerHTML = window.uout('<span style="'+BAD+'">缺参考密度 ρ₀：填「参考点 ρ₀」，或先在 ② 填地面密度</span>'); return; }
 
   var pts=[];
   [['i_pT1','i_pP1','i_pR1'],['i_pT2','i_pP2','i_pR2']].forEach(function(ids){
@@ -8311,15 +8773,15 @@ window.pvtCalib = function(){
     alpha=a0*1e-4;
     var e0=eq(pts[0]);
     if(!(Math.abs(e0.q*e0.dP)>1e-9)){
-      out.innerHTML='<span style="'+BAD+'">测点压力与参考点相同，无法反解 β（换一个不同压力的测点）</span>'; return; }
+out.innerHTML = window.uout('<span style="'+BAD+'">测点压力与参考点相同，无法反解 β（换一个不同压力的测点）</span>'); return; }
     beta=(alpha*e0.A-e0.C)/(e0.q*e0.dP);
     mode='单点（保留 α='+a0.toFixed(2)+'，反解 β）';
   }
 
   var a4=alpha*1e4, b4=beta*1e4;
   if(!isFinite(a4)||!isFinite(b4)||a4<0.3||a4>40||b4<0.3||b4>40){
-    out.innerHTML='<span style="'+BAD+'">反算结果不合理：α='+(isFinite(a4)?a4.toFixed(2):'—')+
-      '、β='+(isFinite(b4)?b4.toFixed(2):'—')+' ×10⁻⁴ —— 两个测点靠得太近，或数据互相矛盾</span>'; return; }
+out.innerHTML = window.uout('<span style="'+BAD+'">反算结果不合理：α='+(isFinite(a4)?a4.toFixed(2):'—')+
+      '、β='+(isFinite(b4)?b4.toFixed(2):'—')+' ×10⁻⁴ —— 两个测点靠得太近，或数据互相矛盾</span>'); return; }
 
   put('i_alphaT', a4.toFixed(2)); put('i_betaP', b4.toFixed(2));
   put('CTmud',   a4.toFixed(2)); put('CPmud',  b4.toFixed(2));
@@ -8328,9 +8790,12 @@ window.pvtCalib = function(){
     var rp=r0*(1+beta*(p[1]-P0))/(1+alpha*(p[0]-T0));
     return (rp-p[2])/p[2]*100;
   });
-  out.innerHTML='<b>α = '+a4.toFixed(2)+' ×10⁻⁴/℃　β = '+b4.toFixed(2)+' ×10⁻⁴/MPa</b>（'+mode+
+  /* α / β 的单位写法随单位制切换（输入框 i_alphaT/i_betaP 已按 invT/invP 量纲换算） */
+  var uT = (window.ECDUnits && !window.ECDUnits.isSI()) ? '℉' : '℃';
+  var uP = (window.ECDUnits && !window.ECDUnits.isSI()) ? 'psi' : 'MPa';
+out.innerHTML = window.uout('<b>α = '+a4.toFixed(2)+' ×10⁻⁴/'+uT+'　β = '+b4.toFixed(2)+' ×10⁻⁴/'+uP+'</b>（'+mode+
     '）　已同步写入 E1 与 ②；回代密度偏差 '+
-    res.map(function(x){ return (x>=0?'+':'')+x.toFixed(2)+'%'; }).join(' / ');
+    res.map(function(x){ return (x>=0?'+':'')+x.toFixed(2)+'%'; }).join(' / '));
 
   try{ if(window.__ctsRecalc) window.__ctsRecalc(); }catch(e){}
   try{ if(window.runCalc) window.runCalc(); }catch(e){}
@@ -9440,20 +9905,19 @@ function renderCavings(res) {
     var zc = r.zc, sh = r.sh;
     var zcCol = zc.lv >= 3 ? 'var(--accent)' : (zc.lv === 2 ? 'var(--warn)' : 'var(--sub)');
     var shCol = sh.k === 'block' ? 'var(--accent)' : (sh.k === 'flake' ? 'var(--warn)' : 'var(--sub)');
-    zs.innerHTML = '<b style="color:' + zcCol + '">' + zc.n + '</b>';
-    ss.innerHTML = '<b style="color:' + shCol + '">' + sh.n + '</b><br><span style="font-size:10px;color:var(--sub)">F=' + f(sh.F, 2) + '（厚/长）</span>';
+zs.innerHTML = window.uout('<b style="color:' + zcCol + '">' + zc.n + '</b>');
+ss.innerHTML = window.uout('<b style="color:' + shCol + '">' + sh.n + '</b><br><span style="font-size:10px;color:var(--sub)">F=' + f(sh.F, 2) + '（厚/长）</span>');
   }
 
   if (!res.nEff) {
-    K.innerHTML = '<tr><td>未录入任何掉块尺寸 → 无法判别（请在 A 区按 长×宽×厚 填写，单位 mm）</td></tr>';
-    if (N) N.innerHTML = ''; return;
+K.innerHTML = window.uout('<tr><td>未录入任何掉块尺寸 → 无法判别（请在 A 区按 长×宽×厚 填写，单位 mm）</td></tr>');
+if (N) N.innerHTML = window.uout(''); return;
   }
 
   var gCol = res.grade.k === 'low' ? 'var(--ok)' : (res.grade.k === 'mid' ? 'var(--warn)' : 'var(--accent)');
   var ratio = res.dmax / Math.max(res.o.d50, 1e-9);
 
-  K.innerHTML =
-   '<tr><th>诊断项</th><th>数值</th><th>说明</th></tr>' +
+K.innerHTML = window.uout('<tr><th>诊断项</th><th>数值</th><th>说明</th></tr>' +
    '<tr><td><b>★ 井壁失稳判定</b></td><td><b style="color:' + gCol + '">' + res.grade.n + '风险</b><br><span style="font-size:11px;color:var(--sub)">风险指数 ' + f(res.risk, 0) + '/100</span></td>' +
      '<td>' + (res.dmax >= 25
         ? '<b>确认为井壁掉块</b>（非钻屑）：最大块 <b>' + f(res.dmax, 0) + ' mm</b>，为钻屑基准 d<sub>50</sub>=' + f(res.o.d50, 0) + ' mm 的 <b>' + f(ratio, 1) + ' 倍</b>'
@@ -9504,7 +9968,7 @@ function renderCavings(res) {
          : (res.winGap < 0.15 ? '窗口偏窄，密度调整余地有限' : '窗口尚可，可在坍塌与漏失压力之间调整 ECD')) + '</td></tr>' +
    '<tr><td>钻屑基准对照 d<sub>50</sub></td><td>' + f(res.o.d50, 0) + ' mm</td>' +
      '<td>PDC 钻头 3~5 mm、牙轮钻头 6~12 mm。当前最大掉块为其 <b>' + f(ratio, 1) + ' 倍</b>，' +
-       (ratio >= 5 ? '远超正常破碎粒度 → <b>确定为井壁脱落</b>' : '接近正常范围，需结合形状与数量判断') + '</td></tr>';
+       (ratio >= 5 ? '远超正常破碎粒度 → <b>确定为井壁脱落</b>' : '接近正常范围，需结合形状与数量判断') + '</td></tr>');
 
   /* ---- D 区 元素录井判读（按层位 / 分类分组） ---- */
   (function () {
@@ -9516,7 +9980,7 @@ function renderCavings(res) {
       if (E) E.rows.forEach(function (q) { if (q.i === i - 1 && q.ok) r = q; });
       if (!r) { rr.innerHTML = '–'; continue; }
       var rc = r.cls === 'sil' ? 'var(--accent)' : (r.cls === 'mix' ? 'var(--warn)' : '#1a63c4');
-      rr.innerHTML = '<b style="color:' + rc + '">' + f(r.siAl, 2) + '</b>';
+rr.innerHTML = window.uout('<b style="color:' + rc + '">' + f(r.siAl, 2) + '</b>');
     }
     if (!elN) return;
     if (!E || !E.n) { elN.innerHTML = '<span style="color:var(--sub)">未填元素录井（可留空）—— 填入后按层位（或 Si/Al）自动分组，判别掉块来源与失稳机理</span>'; return; }
@@ -9555,8 +10019,8 @@ function renderCavings(res) {
           : '最高值远超黄铁矿化学计量 → 大量<b>非硫结合铁</b>（绿泥石 / 菱铁矿），集中在样品 ' + (feMax.i + 1) + '，属黏土质层段特征'));
     }
     t.push('<b>用途：</b>① 与逐趟岩屑元素曲线比对 → <b>锁定各剥落层段</b>；② 监测 Si/Al 突变 → 识别岩性界面；③ 多来源时<b>分别设计封堵/抑制配方</b>。');
-    elN.innerHTML = '<b>元素录井判读：</b><ul style="margin:5px 0 0 16px">' +
-      t.map(function (x) { return '<li style="margin-bottom:4px">' + x + '</li>'; }).join('') + '</ul>';
+elN.innerHTML = window.uout('<b>元素录井判读：</b><ul style="margin:5px 0 0 16px">' +
+      t.map(function (x) { return '<li style="margin-bottom:4px">' + x + '</li>'; }).join('') + '</ul>');
   })();
 
   /* ---- E 区 ★ 甜点识别 ---- */
@@ -9586,8 +10050,8 @@ function renderCavings(res) {
   adv.push('<b>⑥ 监测趋势（关键）</b>：逐趟记录掉块<b>尺寸分布与数量</b>。若最大块径持续增大或单位时间数量上升 → 井眼在持续扩大，须立即处理；若稳定或下降（配合泥浆优化）→ 措施有效。');
   adv.push('<b>⑦ 工具与作业保护</b>：大掉块（&gt;50 mm）易在<b>扶正器、MWD 短节、变径处</b>堆积卡阻，起钻经过该段时避免长时间旋转划眼，必要时分段循环上提。');
 
-  if (N) N.innerHTML = '<b>处置建议：</b><ul style="margin:5px 0 0 16px">' +
-    adv.map(function (t) { return '<li style="margin-bottom:4px">' + t + '</li>'; }).join('') + '</ul>';
+if (N) N.innerHTML = window.uout('<b>处置建议：</b><ul style="margin:5px 0 0 16px">' +
+    adv.map(function (t) { return '<li style="margin-bottom:4px">' + t + '</li>'; }).join('') + '</ul>');
 }
 
 /* ---- ⑬-E ★ 甜点识别：矿物组成堆叠柱 + 甜点等级 + 钻井风险 ---- */
@@ -9596,8 +10060,8 @@ function renderSweet(E) {
   if (!K) return;
   var f = function (v, d) { return (v === null || v === undefined || !isFinite(v)) ? '–' : Number(v).toFixed(d === undefined ? 0 : d); };
   if (!E || !E.n || !E.gsum || !E.gsum.length) {
-    K.innerHTML = '<tr><td>未填元素录井 → 无法识别甜点（需 Si、Al，另建议填 Ca、S、Fe、Mg 以提高矿物反演精度）</td></tr>';
-    if (N) N.innerHTML = '';
+K.innerHTML = window.uout('<tr><td>未填元素录井 → 无法识别甜点（需 Si、Al，另建议填 Ca、S、Fe、Mg 以提高矿物反演精度）</td></tr>');
+if (N) N.innerHTML = window.uout('');
     return;
   }
   var gs = E.gsum.slice().sort(function (a, b) { return b.mn.qz - a.mn.qz; });   /* 按石英含量降序 */
@@ -9619,7 +10083,7 @@ function renderSweet(E) {
         '<span style="font-size:11px">' + cr.mech + '</span></td>' +
       '</tr>';
   });
-  K.innerHTML = h;
+K.innerHTML = window.uout(h);
 
   if (N) {
     var t = [];
@@ -9644,8 +10108,8 @@ function renderSweet(E) {
       '　→ 可与靶窗设计深度比对，确认水平段是否穿行在甜点段内');
     t.push('<b>判据口径：</b>石英/黏土/碳酸盐/黄铁矿为<b>元素当量反演值</b>（Ca→方解石、Mg 的 50%→白云石、Al→黏土（Al 质量分数取 14%）、S→黄铁矿、余量为石英），' +
       '<b>未含长石</b>（元素录井无 Na/K）故 BI 略偏低，<b>宜作层段间相对比较，不宜绝对值直接对标岩心 XRD</b>。如有岩心 XRD 或测井矿物解释，可对标校准。');
-    N.innerHTML = '<b>甜点识别：</b><ul style="margin:5px 0 0 16px">' +
-      t.map(function (x) { return '<li style="margin-bottom:4px">' + x + '</li>'; }).join('') + '</ul>';
+N.innerHTML = window.uout('<b>甜点识别：</b><ul style="margin:5px 0 0 16px">' +
+      t.map(function (x) { return '<li style="margin-bottom:4px">' + x + '</li>'; }).join('') + '</ul>');
   }
   drawSweetChart(E, gs);
 }
@@ -10423,7 +10887,23 @@ function settleVelocityNN(d,drho,rho,K,n,tauY){
   return vs;
 }
 function tempFactor(TC,Ea,TrefK,R){return Math.exp(Ea/R*(1/(TC+273.15)-1/TrefK));}
-const val=id=>parseFloat(document.getElementById(id).value)||0;
+/* ★ 单位感知读数：输入框里是「当前单位制的显示值」，这里换算成 SI 基准值再进内核。
+   未注册量纲（window.UNITKIND 无此 id）的按原值透传 —— 全站量纲表只有一份
+   （① 页 FIELD → window.UNITKIND），保证不会出现「半套英制」。 */
+const val=id=>{const e=document.getElementById(id); if(!e) return 0;
+  const raw=e.value; if(raw===''||raw===null||raw===undefined) return 0;
+  const x=parseFloat(raw); if(!isFinite(x)) return 0;
+  const UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+  const k=UK[id]||'none';
+  if(k==='none') return x;
+  const U=(typeof window!=='undefined'&&window.ECDUnits);
+  if(!U) return x;
+  const b=U.toBase(k,x);
+  return (b===null||typeof b!=='number'||!isFinite(b))?0:b;};
+/* 单列数值的单位换算（textarea 解析用）：kind 无效或缺单位模块时原样返回 */
+const uconv=(k,x)=>{ if(typeof x!=='number'||!isFinite(x)) return x;
+  const U=(typeof window!=='undefined'&&window.ECDUnits); if(!U) return x;
+  const b=U.toBase(k,x); return (b===null||typeof b!=='number'||!isFinite(b))?x:b; };
 /* CFD-DEM 重矫正的逐段结果（供 drawTR 等模块级函数读取） */
 let CFD_CUT={cutT:0,cutT_old:0,rows:[],segs:[]};
 
@@ -10431,7 +10911,7 @@ let CFD_CUT={cutT:0,cutT_old:0,rows:[],segs:[]};
 function parseTraj(txt,mdEnd){
   const MD=[],inc=[],azi=[];
   txt.split(/\n/).forEach(ln=>{const p=ln.trim().split(/[\s,;\t]+/).filter(x=>x.length);
-    if(p.length>=3){const a=parseFloat(p[0]),b=parseFloat(p[1]),c=parseFloat(p[2]);
+    if(p.length>=3){const a=uconv('len',parseFloat(p[0])),b=parseFloat(p[1]),c=parseFloat(p[2]);
       if(!isNaN(a)&&!isNaN(b)&&!isNaN(c)){MD.push(a);inc.push(b);azi.push(c);}}});
   if(MD.length<2)return null;
   /* ★ 末测点浅于井深时补一个末点（井斜/方位沿用末点值，增量 <300m 才补）：
@@ -10527,12 +11007,12 @@ function parseBHA(txt,MD){
       const f=split(s);
       let od,ln,id=null;
       if(f.length>Math.max(li,ii)&&isFinite(parseFloat(f[1]))&&isFinite(parseFloat(f[li]))){
-        od=parseFloat(f[1]); ln=parseFloat(f[li]);
-        if(ii>=0&&ii<f.length&&isFinite(parseFloat(f[ii]))) id=parseFloat(f[ii]);
+        od=uconv('dia',parseFloat(f[1])); ln=uconv('len',parseFloat(f[li]));
+        if(ii>=0&&ii<f.length&&isFinite(parseFloat(f[ii]))) id=uconv('dia',parseFloat(f[ii]));
       }else{
         const nums=(s.match(/-?\d+\.?\d*/g)||[]).map(Number);
         if(nums.length<2) continue;
-        od=nums[nums.length-2]; ln=nums[nums.length-1]; id=null;
+        od=uconv('dia',nums[nums.length-2]); ln=uconv('len',nums[nums.length-1]); id=null;
       }
       if(!(od>=30&&od<=500)||!(ln>0)) continue;
       const nm0=(split(s)[0]||s).replace(/["']/g,'').trim()||('Ø'+od);
@@ -10624,7 +11104,7 @@ function parseCaliper(txt){
   String(txt||'').split(/\n/).forEach(ln=>{
     const s=ln.trim(); if(!s||/^[#\/]/.test(s)) return;
     const m=s.match(/-?\d+\.?\d*/g); if(!m||m.length<2) return;
-    const md=parseFloat(m[0]), dh=parseFloat(m[1]);
+    const md=uconv('len',parseFloat(m[0])), dh=uconv('dia',parseFloat(m[1]));
     if(!isFinite(md)||!isFinite(dh)||md<0||dh<50||dh>1500) return;
     pts.push({md:md,dh:dh/1000});
   });
@@ -10909,13 +11389,13 @@ function runCalc(fromUser){
         const kg=[0,15,30,45,60,75,90].map(a=>a+'°→'+eccPchip(a).toFixed(2)).join('　');
         let mono=true;
         for(let q=1;q<ECC_Y.length;q++) if(ECC_Y[q]<ECC_Y[q-1]) mono=false;
-        pv.innerHTML='<b>e(θ) 插值：</b>'+kg
+pv.innerHTML = window.uout('<b>e(θ) 插值：</b>'+kg
           +'　｜　全井段长加权 <b>'+eccUse.toFixed(2)+'</b>'
           +'　｜　再乘 (1+0.10·DLS) 封顶 ×2.2 → 逐段 e<sub>eff</sub>'
-          +(mono?'':'<br><b style="color:#c9820a">⚠ 锚点非单调递增</b>：应满足 e₀ ≤ e₃₀ ≤ e₆₀ ≤ e₉₀（井斜越大、钻柱越贴下井壁）。当前设置与物理相悖，请复核。');
+          +(mono?'':'<br><b style="color:#c9820a">⚠ 锚点非单调递增</b>：应满足 e₀ ≤ e₃₀ ≤ e₆₀ ≤ e₉₀（井斜越大、钻柱越贴下井壁）。当前设置与物理相悖，请复核。'));
       }else{
-        pv.innerHTML='当前为<b>固定值</b>模式：全井 e = <b>'+eccFix.toFixed(2)
-          +'</b>（直井段会偏脏、水平段偏干净）—— 要按井斜变化请在上方选「按井斜分段」';
+pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+eccFix.toFixed(2)
+          +'</b>（直井段会偏脏、水平段偏干净）—— 要按井斜变化请在上方选「按井斜分段」');
       }
     }
   }catch(e){}
@@ -11232,8 +11712,7 @@ function runCalc(fromUser){
     e.textContent = w? '　｜　'+w : ''; })();
 
   const dash=x=>x===null||x===undefined||(typeof x==='number'&&!isFinite(x))?'–':x;
-  document.getElementById('rheoTbl').innerHTML=
-    `<tr><th>参数</th><th>值</th><th>参数</th><th>值</th></tr>
+document.getElementById('rheoTbl').innerHTML = window.uout(`<tr><th>参数</th><th>值</th><th>参数</th><th>值</th></tr>
      <tr><td>PV (cP)</td><td>${(PV*1000).toFixed(2)}</td><td>n(600/300) 高剪切</td><td>${npl.toFixed(3)}</td></tr>
      <tr><td>YP (Pa)</td><td>${YP.toFixed(2)}</td><td>温度变稀系数 f</td><td>${fT.toFixed(4)}</td></tr>
      <tr><td>K_eff@循环 (cP)</td><td>${(Keff*1000).toFixed(2)}</td><td>YP_eff@循环 (Pa)</td><td>${YPeff.toFixed(2)}</td></tr>
@@ -11242,44 +11721,41 @@ function runCalc(fromUser){
      <tr><td>Gel 读数 (10秒/10分/30分)</td><td>${dash(gel10v>0?gel10v:null)} / ${dash(gel10mv>0?gel10mv:null)} / ${dash(gel30v>0?gel30v:null)}</td><td>触变比 30分/10分 · 总比 30分/10秒</td><td>${dash(gelRatio30!==null?gelRatio30.toFixed(2):null)} · ${dash(gelRatioTot!==null?gelRatioTot.toFixed(2):null)}</td></tr>
      <tr><td>静切悬浮粒径 10秒 (mm)</td><td>${dash(dHold!==null?(dHold*1000).toFixed(2):null)}</td><td>静切悬浮粒径 30分 (mm)</td><td>${dash(dHold30!==null?(dHold30*1000).toFixed(2):null)}</td></tr>
      <tr><td>θ6 (6转读数)</td><td>${dash(t6>0?t6:null)}</td><td>θ3 (3转读数)</td><td>${dash(t3>0?t3:null)}</td></tr>
-     <tr><td>n(θ6/θ3) 低剪切</td><td>${dash(nLS!==null?nLS.toFixed(3):nLS)}</td><td>温度变稀 f(T)</td><td>${fT.toFixed(4)}</td></tr>`;
-  document.getElementById('rheoNote').innerHTML=
-    `<b>静切力(Gel)</b>由 Fann 3转 <b>10秒(初切) / 10分(终切) / 30分</b> 读数<b>手动填写</b>（换算 Pa = 读数 × 0.511），非计算所得；主导停泵后岩屑悬浮、岩屑床启动与井眼净化，对高剪切环空摩擦 ECD 影响很小（ECD 由 PV/YP 主导）。`+
+     <tr><td>n(θ6/θ3) 低剪切</td><td>${dash(nLS!==null?nLS.toFixed(3):nLS)}</td><td>温度变稀 f(T)</td><td>${fT.toFixed(4)}</td></tr>`);
+document.getElementById('rheoNote').innerHTML = window.uout(`<b>静切力(Gel)</b>由 Fann 3转 <b>10秒(初切) / 10分(终切) / 30分</b> 读数<b>手动填写</b>（换算 Pa = 读数 × 0.511），非计算所得；主导停泵后岩屑悬浮、岩屑床启动与井眼净化，对高剪切环空摩擦 ECD 影响很小（ECD 由 PV/YP 主导）。`+
     `<b>30分静切</b>用于评估<b>长时间静止</b>（换钻头、设备故障、长时间停泵）的沉砂风险，与 ④ 的最长安全静止时间直接关联。`+
-    `θ6/θ3 为 Fann 6/3 转读数，表征<b>低剪切流性指数 n</b> 与触变性。静切力过低→悬浮差易沉砂；触变比(10分/10秒)越大→结构恢复越快（一般 1.5~4 正常，>5 偏强触变），但过高会导致开泵憋压、破坏岩屑床困难。`;
+    `θ6/θ3 为 Fann 6/3 转读数，表征<b>低剪切流性指数 n</b> 与触变性。静切力过低→悬浮差易沉砂；触变比(10分/10秒)越大→结构恢复越快（一般 1.5~4 正常，>5 偏强触变），但过高会导致开泵憋压、破坏岩屑床困难。`);
 
-  document.getElementById('trajNote').innerHTML= trajUsed
+document.getElementById('trajNote').innerHTML = window.uout(trajUsed
     ? `已读入 ${tr.MD.length} 个测点。最小曲率法：<b>TVD=${TVD.toFixed(1)} m</b>（MD=${MD} m，差值 ${(MD-TVD).toFixed(1)} m）；水平位移=${tr.closure.toFixed(1)} m；井底井斜=${tr.incBot.toFixed(1)}°。`
-    : `<span class="err">未提供轨迹 → TVD 退回 MD=${MD} m（直井近似，ECD 会被算低）。请粘贴轨迹三列数据。</span>`;
+    : `<span class="err">未提供轨迹 → TVD 退回 MD=${MD} m（直井近似，ECD 会被算低）。请粘贴轨迹三列数据。</span>`);
 
   /* ---------- ★ 井径剖面摘要（大肚子 / 缩径） ---------- */
   const calS=calUsed?calStats(calPts,Dh,MD,(tr?tr.MD:null),0.05):null;
   const calTblEl=document.getElementById('calTbl'), calNoteEl=document.getElementById('calNote');
   if(calTblEl&&calNoteEl){
     if(!calS){
-      calTblEl.innerHTML=`<tr><th>井径剖面</th><th>数值</th><th>说明</th></tr>
-        <tr><td>口径</td><td>全井标称井径 ${DhMM0} mm</td><td>未填井径剖面 → 全井按①卡的标称井径计算（等效均匀井眼）。实际井眼因水化膨胀/崩落/冲蚀并不均匀，建议按实测井径录入。</td></tr>`;
-      calNoteEl.innerHTML=`<b>提示：</b>在 ① 卡「井径剖面 CALIPER」中粘贴 <code>井深(m) 井径(mm)</code> 即可启用逐段井径：程序在相邻实测点间线性插值，并把局部井径代入<b>环空过流面积、环空返速、雷诺数/摩阻、ECD、携岩裕度与岩屑床判据</b>（大肚子→局部流速↓、携岩变差；缩径→流速↑、ECD 抬高）。`;
+calTblEl.innerHTML = window.uout(`<tr><th>井径剖面</th><th>数值</th><th>说明</th></tr>
+        <tr><td>口径</td><td>全井标称井径 ${DhMM0} mm</td><td>未填井径剖面 → 全井按①卡的标称井径计算（等效均匀井眼）。实际井眼因水化膨胀/崩落/冲蚀并不均匀，建议按实测井径录入。</td></tr>`);
+calNoteEl.innerHTML = window.uout(`<b>提示：</b>在 ① 卡「井径剖面 CALIPER」中粘贴 <code>井深(m) 井径(mm)</code> 即可启用逐段井径：程序在相邻实测点间线性插值，并把局部井径代入<b>环空过流面积、环空返速、雷诺数/摩阻、ECD、携岩裕度与岩屑床判据</b>（大肚子→局部流速↓、携岩变差；缩径→流速↑、ECD 抬高）。`);
     } else {
       const tot=(calS.dAvg>0)?calS.dAvg:0;
       const fW=(calS.wide||[]).map(r=>`${r.top.toFixed(0)}~${r.bot.toFixed(0)} m（+${(r.ext*100).toFixed(0)}%）`).join('、');
       const fN=(calS.narrow||[]).map(r=>`${r.top.toFixed(0)}~${r.bot.toFixed(0)} m（−${(r.ext*100).toFixed(0)}%）`).join('、');
-      calTblEl.innerHTML=`<tr><th>井径剖面指标</th><th>数值</th><th>说明 / 判据</th></tr>
+calTblEl.innerHTML = window.uout(`<tr><th>井径剖面指标</th><th>数值</th><th>说明 / 判据</th></tr>
         <tr><td>剖面口径</td><td>已启用（${calPts.length} 个实测点，线性插值）</td><td>相邻点间线性插值；剖面两端点以外取端点值</td></tr>
         <tr><td>标称井径 D<sub>h</sub></td><td>${DhMM0} mm</td><td>① 卡钻头/设计井径，作为扩径/缩径判据基准</td></tr>
         <tr><td>最小 / 最大井径</td><td style="color:var(--accent)"><b>${(calS.dMin*1000).toFixed(1)}</b> / ${(calS.dMax*1000).toFixed(1)} mm</td><td>缩径比 −${(100*(1-calS.dMin/Dh)).toFixed(1)}%；扩径比 +${(100*(calS.dMax/Dh-1)).toFixed(1)}%</td></tr>
         <tr><td>井段长度加权平均井径</td><td>${(calS.dAvg*1000).toFixed(1)} mm</td><td>相对标称 ${((calS.dAvg/Dh-1)*100>=0?'+':'')}${((calS.dAvg/Dh-1)*100).toFixed(1)}% ｜ 全井平均环空容积已按此逐段计入</td></tr>
         <tr><td>扩径段（大肚子 &gt;+5%）</td><td style="color:var(--accent)">${calS.wide.length} 段</td><td>${fW||'无'}</td></tr>
-        <tr><td>缩径段（&lt;−5%）</td><td style="color:var(--accent)">${calS.narrow.length} 段</td><td>${fN||'无'}</td></tr>`;
-      calNoteEl.innerHTML=`<b>井径如何影响本程序：</b>过流面积 <code>A=π/4(D_h²−D_p²)</code> → 返速 <code>V=Q/A</code>。<b>大肚子</b>段局部流速下降，携带能力减弱、岩屑易沉降形成"大肚子沉砂"，遇卡/憋钻常发生在扩径→缩径过渡处；<b>缩径</b>段局部流速升高、环空摩阻与 ECD 抬高。程序已把局部井径代入 ③/④/⑤/⑥/⑨/⑪ 各卡逐段计算（可在对应表的「井径」列核对），"最危险段"会随井径剖面一起变化。<br>
-        <b>填表建议：</b>至少录入<b>扩径/缩径段的起止点与极值点</b>（如井径测井曲线的拐点、钻后通井遇阻点），即可逼近真实井眼尺寸。`;
+        <tr><td>缩径段（&lt;−5%）</td><td style="color:var(--accent)">${calS.narrow.length} 段</td><td>${fN||'无'}</td></tr>`);
+calNoteEl.innerHTML = window.uout(`<b>井径如何影响本程序：</b>过流面积 <code>A=π/4(D_h²−D_p²)</code> → 返速 <code>V=Q/A</code>。<b>大肚子</b>段局部流速下降，携带能力减弱、岩屑易沉降形成"大肚子沉砂"，遇卡/憋钻常发生在扩径→缩径过渡处；<b>缩径</b>段局部流速升高、环空摩阻与 ECD 抬高。程序已把局部井径代入 ③/④/⑤/⑥/⑨/⑪ 各卡逐段计算（可在对应表的「井径」列核对），"最危险段"会随井径剖面一起变化。<br>
+        <b>填表建议：</b>至少录入<b>扩径/缩径段的起止点与极值点</b>（如井径测井曲线的拐点、钻后通井遇阻点），即可逼近真实井眼尺寸。`);
     }
   }
 
-  document.getElementById('bhaTbl').innerHTML=
-    `<tr><th>钻具</th><th>外径 mm</th><th>井径 D<sub>h</sub> mm</th><th>间隙 mm</th><th>长度 m</th><th>V_ann m/s</th><th>ΔP_lam MPa</th><th>Re_B</th><th>流态</th></tr>`+rows;
-  document.getElementById('bhaNote').innerHTML=
-    `共 ${secs.length} 段（钻头→上顺序，已在 MD=${MD} m 处截断，超出钻杆为后续钻进备用）；环空总体积=${Vtot.toFixed(1)} m³；平均返速=${(Q/(Vtot/Math.max(MD,1))).toFixed(3)} m/s。BHA 已按"距钻头长度"翻转映射至井底（水平段），顶部钻杆位于井口。`;
+document.getElementById('bhaTbl').innerHTML = window.uout(`<tr><th>钻具</th><th>外径 mm</th><th>井径 D<sub>h</sub> mm</th><th>间隙 mm</th><th>长度 m</th><th>V_ann m/s</th><th>ΔP_lam MPa</th><th>Re_B</th><th>流态</th></tr>`+rows);
+document.getElementById('bhaNote').innerHTML = window.uout(`共 ${secs.length} 段（钻头→上顺序，已在 MD=${MD} m 处截断，超出钻杆为后续钻进备用）；环空总体积=${Vtot.toFixed(1)} m³；平均返速=${(Q/(Vtot/Math.max(MD,1))).toFixed(3)} m/s。BHA 已按"距钻头长度"翻转映射至井底（水平段），顶部钻杆位于井口。`);
 
   document.getElementById('e_lam').textContent=Elam.toFixed(4);
   document.getElementById('e_turb').textContent=Eturb.toFixed(4);
@@ -11321,8 +11797,7 @@ function runCalc(fromUser){
     return `<br><b>★ 实测迟到时间标定：</b>实测 <b>${lagMeas.toFixed(1)} min</b> ／ 计算 <b>${cutT.toFixed(1)} min</b> → 标定系数 k<sub>lag</sub>=<b>${k.toFixed(2)}</b>（偏差 ${dev>=0?'+':''}${dev.toFixed(1)}%，<span style="color:${grade[0]}">${grade[1]}</span>）；`+
       `标定后 Cut Time 各口径：CFD-DEM ${(cutT_cfd*k).toFixed(1)} ／ N-S低边 ${(cutT_nsl*k).toFixed(1)} ／ DFEM ${(cutT_dfem*k).toFixed(1)} min。`;
   })():'';
-  document.getElementById('ecdNote').innerHTML=
-    `滑移速度 vs(${(d*1000)}mm)=${vs.toFixed(3)} m/s ${Ynum>0.143?'<span class="tag turb" style="background:#e6f5ea;color:var(--ok)">屈服悬浮</span>':''}（Y=${Ynum.toFixed(3)}）；`+
+document.getElementById('ecdNote').innerHTML = window.uout(`滑移速度 vs(${(d*1000)}mm)=${vs.toFixed(3)} m/s ${Ynum>0.143?'<span class="tag turb" style="background:#e6f5ea;color:var(--ok)">屈服悬浮</span>':''}（Y=${Ynum.toFixed(3)}）；`+
     `<b>低剪切沉降口径</b>：${svP.src}（Walker–Mayes γ̇<sub>s</sub>=12·v<sub>s</sub>/d 迭代表观粘度；旧版用高剪切 PV 会高估 vs）。`+
     `稳态 C_v=${cvPct.toFixed(3)}%。${cvWarn}<br>`+
     `<b>流态判定：</b>全井 ${secs.length} 段中 <b>${turbCount}</b> 段为紊流（Re_B ${reMin.toFixed(0)}~${reMax.toFixed(0)}，临界 2100；Bingham 广义雷诺数）→ 取 <b>${regMain}</b> 口径 ECD。<br>`+
@@ -11334,7 +11809,7 @@ function runCalc(fromUser){
     `含岩屑（三项）${Ec_lam.toFixed(4)}～${Ec_turb.toFixed(4)} SG；`+
     `Cut time ≈ <b>${cutT.toFixed(1)} min</b>（${(vpEngine==='nsl')?'★N-S 低边耦合':(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S 平均':'CFD-DEM'))}口径`+
     `；对照 CFD-DEM ${cutT_cfd.toFixed(1)}／★N-S低边(按井段) ${cutT_nsl.toFixed(1)}／N-S纯低边(按井段) ${cutT_nslb.toFixed(1)}／DFEM ${cutT_dfem.toFixed(1)}／N-S平均 ${cutT_ns.toFixed(1)}／旧自由沉降 ${cutT_old.toFixed(1)} min）。${lagTxt}<br>${ptTxt}`+
-    `<br><span style="color:var(--sub)">水力学口径：紊流摩阻 Dodge–Metzner（f=4a/Re<sup>b</sup>，a=(lg n+3.93)/50，b=(1.75−lg n)/7；n=1 退化 Blasius）；流变与密度按<b>逐段垂深温度 T(z)=T<sub>s</sub>+grad·TVD</b> 与 ρ(z) 温压剖面修正（HTHP 手册口径）。</span>`;
+    `<br><span style="color:var(--sub)">水力学口径：紊流摩阻 Dodge–Metzner（f=4a/Re<sup>b</sup>，a=(lg n+3.93)/50，b=(1.75−lg n)/7；n=1 退化 Blasius）；流变与密度按<b>逐段垂深温度 T(z)=T<sub>s</sub>+grad·TVD</b> 与 ρ(z) 温压剖面修正（HTHP 手册口径）。</span>`);
 
   // ---- 岩屑床启动 / 井眼净化判据 ----
   let bedHTML="";
@@ -11348,8 +11823,7 @@ function runCalc(fromUser){
       <td>${r.Vcrit.toFixed(3)}</td><td>${r.margin.toFixed(2)}</td><td>${r.tauWall.toFixed(2)}</td>
       <td>${r.tauCrit.toFixed(3)}</td><td>${r.rpmBreak.toFixed(0)} / ${r.rpmNow.toFixed(0)} ${rtag}</td><td>${tag}</td></tr>`;
   });
-  document.getElementById('bedTbl').innerHTML=
-    `<tr><th>钻具</th><th>井斜°</th><th>井径<br>mm</th><th>有效粒径<br>mm</th><th>V_ann</th><th>V_ann临界</th><th>携岩裕度</th><th>τ_wall</th><th>τ_crit</th><th>破床RPM(需/当前)</th><th>状态</th></tr>`+bedHTML;
+document.getElementById('bedTbl').innerHTML = window.uout(`<tr><th>钻具</th><th>井斜°</th><th>井径<br>mm</th><th>有效粒径<br>mm</th><th>V_ann</th><th>V_ann临界</th><th>携岩裕度</th><th>τ_wall</th><th>τ_crit</th><th>破床RPM(需/当前)</th><th>状态</th></tr>`+bedHTML);
   /* 最危险段 = 携岩裕度最小者（原先取井斜最大者，会与表格里外径小、流速低的段相矛盾） */
   const critSec=bedRows.reduce((a,b)=>b.margin<a.margin?b:a,bedRows[0]);
   const maxIncSec=bedRows.reduce((a,b)=>b.inc>a.inc?b:a,bedRows[0]);
@@ -11436,8 +11910,7 @@ function runCalc(fromUser){
       `<br>　④ <b>起钻憋卡的机理</b>：钻头 / BHA（外径大）通过该带时"刮带"已堆积的薄床 → 局部堵塞 → 憋卡。典型征兆：<b>悬重上升、扭矩波动、憋停</b>；`+
       `<br>　⑤ <b>建议</b>：通过该带前充分循环 ≥1 周；起钻<b>分段上提、每段循环</b>；避免长时间静止后直接上提；必要时短起下扫床。`;
   }
-  document.getElementById('bedNote').innerHTML=
-    `滑移速度 vs=${vsTerm.toFixed(3)} m/s；临界剪切 τ_crit=ψ·d·Δρ·g·cos(井斜)（ψ=0.045）。`+dyn+'<br>'+stat+pull;
+document.getElementById('bedNote').innerHTML = window.uout(`滑移速度 vs=${vsTerm.toFixed(3)} m/s；临界剪切 τ_crit=ψ·d·Δρ·g·cos(井斜)（ψ=0.045）。`+dyn+'<br>'+stat+pull);
 
   // ============ ⑤ CFD-DEM 内核重矫正结果渲染 ============
   (function(){
@@ -11481,8 +11954,7 @@ function runCalc(fromUser){
     const VsuspL=AannAvg*Cv*LsegV;                /* 该段环空内稳态悬浮岩屑体积 m³ */
     const tsegS=(ROP>0)?LsegV/ROP:NaN;            /* 钻完这 L 米所需时间 s */
     const ratioQ=(AannAvg>0&&Cv>0)?(AbitV/AannAvg/Cv):NaN;
-    KPe.innerHTML=
-      `<tr><th>指标</th><th>数值</th><th>说明</th></tr>
+KPe.innerHTML = window.uout(`<tr><th>指标</th><th>数值</th><th>说明</th></tr>
        <tr><td>当前主引擎 Cut Time（${(vpEngine==='dfem')?'DFEM':((vpEngine==='ns')?'N-S平均':((vpEngine==='nsl')?'N-S低边耦合':'CFD-DEM'))}）</td><td><b style="color:var(--ok)">${cutT.toFixed(1)} min</b></td><td>下方各口径对照，主引擎由"Cut Time 采用引擎"下拉决定</td></tr>
        <tr><td>CFD-DEM 重矫正 Cut Time</td><td>${cutT_cfd.toFixed(1)} min</td><td>以 TR(θ,V_loc) 计 v_p=TR·V_loc 逐段积分</td></tr>
        <tr><td>★ N-S 低边耦合 Cut Time</td><td><b style="color:var(--accent)">${cutT_nsl.toFixed(1)} min</b></td><td><b>按井段两层加权</b>：仅「钻具局部填满井眼(BHA/螺杆/扶正器/震击器) ∧ 大斜度」的井段把床层中的<b>锁死份额</b>=h*·wLS 计入窄缝速度 vBed，其余井段走悬浮主流 vSusp（CFD-DEM/N-S 平均口径）。v<sub>low</sub>=lowRatio·V<sub>eff</sub> 为偏心窄缝 H-B 局部流速（同一 Φ 解）</td></tr>
@@ -11529,7 +12001,7 @@ function runCalc(fromUser){
        <tr><td>该段环空内<b>稳态悬浮</b>岩屑量<br><span style="font-size:10.5px;color:var(--sub)">（≠ 产出量，别混用）</span></td>
          <td>${VsuspL.toExponential(2)} m³ ／ ${(VsuspL*rhoc).toFixed(2)} kg<br><span style="font-size:10.5px;color:var(--sub)">= ${(VsuspL*1000).toFixed(3)} L（与上一行同单位 m³ 对比：小 ≈${isFinite(ratioQ)?ratioQ.toFixed(0):'—'} 倍）</span></td>
          <td>只是「此刻恰好悬浮在这 ${LsegV} m 环空里」的那点量 = 段内容积 <b>${(AannAvg*LsegV).toFixed(4)} m³</b> × 体积浓度 C<sub>v</sub> <b>${(Cv*100).toFixed(3)} %</b>。<br><b>比产出量小 ≈${isFinite(ratioQ)?ratioQ.toFixed(0):'—'} 倍是正常的</b>（≈ A<sub>bit</sub>/A<sub>ann</sub>/C<sub>v</sub>）：同一批岩屑返出前被泥浆摊在整条环空上 —— 到井口要 t<sub>lag</sub> ${lagMin.toFixed(0)} min，而钻这 ${LsegV} m 只要 ${isFinite(tsegS)?(tsegS/60).toFixed(1):'—'} min</td></tr>
-       <tr><td>井径修正因子</td><td>${CFDTR.dhFactor(dhAt(trMinMd)*1000).toFixed(3)}</td><td>标定基准 215.9mm；最危险段井径 ${(dhAt(trMinMd)*1000).toFixed(1)}mm${calUsed?'（井径剖面逐段取值；标称 '+DhMM0+'mm）':'（全井标称）'}（内核对照：井径每增 14.1mm，TR 折减 0.15）</td></tr>`;
+       <tr><td>井径修正因子</td><td>${CFDTR.dhFactor(dhAt(trMinMd)*1000).toFixed(3)}</td><td>标定基准 215.9mm；最危险段井径 ${(dhAt(trMinMd)*1000).toFixed(1)}mm${calUsed?'（井径剖面逐段取值；标称 '+DhMM0+'mm）':'（全井标称）'}（内核对照：井径每增 14.1mm，TR 折减 0.15）</td></tr>`);
     // 逐段表
     let h='<tr><th>井深 m</th><th>井斜°</th><th>DLS °/30m</th><th>井径 mm</th><th>e_eff</th><th>V_ann m/s</th><th>V_eff m/s</th><th>TR</th><th>v_p m/s</th><th>lowRatio</th><th>v_p(N-S低边) m/s</th><th>h* 间隙</th><th>床堵</th><th>流型</th></tr>';
     cutSegs.forEach(r=>{
@@ -11546,12 +12018,11 @@ function runCalc(fromUser){
         <td style="${lrc}">${(r.lowRatio||0).toFixed(3)}${r.slitLocked?' 锁':''}</td><td>${(r.vpNSL||0).toFixed(3)}</td>
         <td>${(r.hStar*100).toFixed(1)}%</td><td>${r.block.toFixed(1)}%</td><td>${reg}</td></tr>`;
     });
-    TRe.innerHTML=h;
-    document.getElementById('cfdNote').innerHTML=
-      `<b>重矫正要点：</b>旧模型把岩屑滑移视为"球体在静止流体中的自由沉降速度 vs=${(Ynum>0.143?0:vsTerm).toFixed(3)} m/s"，
+TRe.innerHTML = window.uout(h);
+document.getElementById('cfdNote').innerHTML = window.uout(`<b>重矫正要点：</b>旧模型把岩屑滑移视为"球体在静止流体中的自由沉降速度 vs=${(Ynum>0.143?0:vsTerm).toFixed(3)} m/s"，
        再按 sin(井斜) 投影——这在<b>大斜度/水平段物理上不成立</b>（颗粒不自由沉降，而是贴低边滑移、被床层阻滞）。<br>
        CFD-DEM 内核直接给出颗粒平均轴向速度 <b>v_p = TR·V_loc</b>，TR 同时包含滑移、床层阻滞、旋转再悬浮与偏心亏流，
-       且天然重现<b>临界角（30~45°）TR 最小</b>的现场规律。据此重算 Cut Time = ${cutT.toFixed(1)} min。`;
+       且天然重现<b>临界角（30~45°）TR 最小</b>的现场规律。据此重算 Cut Time = ${cutT.toFixed(1)} min。`);
     drawTR();
   })();
 
@@ -11567,12 +12038,12 @@ function runCalc(fromUser){
       ? '沿井深 DFEM 判据（区间 / CTR / C_conc / 评级）'
       : '沿井深 CFD-DEM 判据（运移比 TR / 颗粒上返 / 床高 / 流型）';
     const capEl=document.getElementById('engCap');
-    if(capEl) capEl.innerHTML=(vpEngine==='dfem')
+if(capEl) capEl.innerHTML = window.uout((vpEngine==='dfem')
       ? '上图：<b>CTR 岩屑输送比</b>沿井深。经验合格线 <b>CTR ≥ 50%</b>（对应 V<sub>ANN</sub> &gt; 2·V<sub>SLIP</sub>）。'
-      : '上图：<b>运移比 TR = v̄<sub>p</sub>/V<sub>loc</sub></b>沿井深。风险线 <b>TR = 0.55</b>（低于它颗粒上返不足局部流速的 55%）；淡红带为 30~60° 中斜危险区。';
-    if(titleEl) titleEl.innerHTML='⑥ ★ 井眼清洁评估 · 当前引擎：'+
+      : '上图：<b>运移比 TR = v̄<sub>p</sub>/V<sub>loc</sub></b>沿井深。风险线 <b>TR = 0.55</b>（低于它颗粒上返不足局部流速的 55%）；淡红带为 30~60° 中斜危险区。');
+if(titleEl) titleEl.innerHTML = window.uout('⑥ ★ 井眼清洁评估 · 当前引擎：'+
       (isDfem?'<span style="color:var(--accent2)">DFEM Walker &amp; Mayes</span>'
-             :'<span style="color:var(--accent2)">CFD-DEM 运移比 TR</span>');
+             :'<span style="color:var(--accent2)">CFD-DEM 运移比 TR</span>'));
     /* 三个 Cut Time 口径（两模式均显示，便于直接对照） */
     const cutCmp=
       `<tr><td><b>Cut Time · 当前主引擎</b></td><td><b style="color:var(--accent2)">${cutT.toFixed(1)} min</b></td>
@@ -11592,7 +12063,7 @@ function runCalc(fromUser){
       let w=dfemSegs[0]; dfemSegs.forEach(s=>{ if(s.raw.CTR<w.raw.CTR) w=s; });
       let mC=dfemSegs[0]; dfemSegs.forEach(s=>{ if(s.raw.Cconc>mC.raw.Cconc) mC=s; });
       const r0=w.raw;
-      KPe.innerHTML=`<tr><th>DFEM 指标（Walker &amp; Mayes）</th><th>数值</th><th>说明 / 判据</th></tr>`+cutCmp+
+KPe.innerHTML = window.uout(`<tr><th>DFEM 指标（Walker &amp; Mayes）</th><th>数值</th><th>说明 / 判据</th></tr>`+cutCmp+
         `<tr><td>V<sub>SLIP</sub> 滑移速度（垂直基准）</td><td>${r0.VSLIP0_mps.toFixed(4)} m/s</td>
           <td>F<sub>p</sub>=${r0.Fp.toFixed(2)} lb/100ft²，R<sub>c</sub>=${r0.Rc.toFixed(0)}，R<sub>p</sub>=${r0.Rp.toFixed(0)} RPM → <b>${r0.regime==='laminar'?'层流':'紊流'}</b></td></tr>
          <tr><td>V<sub>SLIP</sub> 角度修正后</td><td>${r0.VSLIP_mps.toFixed(4)} m/s</td>
@@ -11605,7 +12076,7 @@ function runCalc(fromUser){
           <td>维持 C<sub>conc</sub>≤${cconcMaxV}%；最危险段实际 V<sub>ANN</sub>=${r0.VANN_mps.toFixed(3)} m/s，裕度 <b>${r0.marginAV.toFixed(2)}×</b></td></tr>
          <tr><td>LSRYP 低剪切屈服点</td><td>${r0.LSRYP!==null?r0.LSRYP.toFixed(1):'–'}</td>
           <td>2·θ3−θ6；定向井建议 1.0~1.2×井径 = ${(Dh*1000/25.4).toFixed(1)}~${(Dh*1000/25.4*1.2).toFixed(1)}（英寸，按标称井径 ${DhMM0} mm）</td></tr>
-         <tr><td>最危险段井斜区间</td><td>${r0.range.id}</td><td>${r0.range.note}</td></tr>`;
+         <tr><td>最危险段井斜区间</td><td>${r0.range.id}</td><td>${r0.range.note}</td></tr>`);
       let h='<tr><th>井深 m</th><th>井斜°</th><th>区间</th><th>V_ANN m/s</th><th>V_SLIP m/s</th><th>CTR %</th><th>C_conc %</th><th>v_p m/s</th><th>评级</th></tr>';
       dfemSegs.forEach(s=>{
         const r=s.raw;
@@ -11616,19 +12087,18 @@ function runCalc(fromUser){
           <td style="${ctrc}">${r.CTR.toFixed(1)}</td><td>${r.Cconc.toFixed(3)}</td>
           <td>${s.vp.toFixed(3)}</td><td>${g}</td></tr>`;
       });
-      TRe.innerHTML=h;
+TRe.innerHTML = window.uout(h);
       let fl='';
       dfemSegs.forEach(s=>{ s.raw.flags.forEach(f=>{
         const key=f.lv+'|'+f.t.replace(/[\d.]+/g,'#');
         if(!fl.includes(key)) fl+=`<li><span style="color:${f.lv==='bad'?'var(--accent)':'var(--warn)'}">[${f.lv==='bad'?'须处理':'注意'}]</span> ${f.t}</li>`;
       });});
-      document.getElementById('dfemNote').innerHTML=
-        `<b>当前引擎：DFEM Walker &amp; Mayes（M-I SWACO DFEM v2.2 · Ch.20B.9）。</b>模型链：F<sub>p</sub>=7.4·[h<sub>C</sub>(8.34G<sub>p</sub>−W)]<sup>0.5</sup>
+document.getElementById('dfemNote').innerHTML = window.uout(`<b>当前引擎：DFEM Walker &amp; Mayes（M-I SWACO DFEM v2.2 · Ch.20B.9）。</b>模型链：F<sub>p</sub>=7.4·[h<sub>C</sub>(8.34G<sub>p</sub>−W)]<sup>0.5</sup>
          → R<sub>c</sub>=109/(d<sub>c</sub>√W) → 解 θ(R<sub>p</sub>)=F<sub>p</sub> 得 R<sub>p</sub> → 层流/紊流分支求 V<sub>SLIP</sub>
          → V<sub>RISE</sub>=V<sub>ANN</sub>−V<sub>SLIP</sub> → CTR=100·V<sub>RISE</sub>/V<sub>ANN</sub>；C<sub>conc</sub>=1.667·ROP·D<sub>b</sub>²/[(D<sub>h</sub>²−D<sub>p</sub>²)·V<sub>RISE</sub>]。<br>
          <b>角度修正：</b>手册明确该关系式"仅适用垂直段、倾斜段适用性下降"，且 <b>40~60° 因 Boycott 沉降特别麻烦</b>、
          III 区间（30~60°）造斜段最难清洁（床层可反向滑塌）。故对 V<sub>SLIP</sub> 乘角度因子 D(θ)（峰值 45~50°，量级由 CFD-DEM 内核算子标定）。<br>
-         <b>需要关注：</b><ul style="margin:5px 0 0 18px;padding:0">${fl||'<li>无</li>'}</ul>`;
+         <b>需要关注：</b><ul style="margin:5px 0 0 18px;padding:0">${fl||'<li>无</li>'}</ul>`);
       drawEngCurve(true);
     } else {
       /* ================= CFD-DEM 模式 ================= */
@@ -11637,7 +12107,7 @@ function runCalc(fromUser){
       let mh=cutSegs[0]; cutSegs.forEach(s=>{ if(s.hStar>mh.hStar) mh=s; });
       const dhF=CFDTR.dhFactor(dhAt(w.md)*1000);
       const kappa=Math.pow(1-0.8*eccUse,1);
-      KPe.innerHTML=`<tr><th>CFD-DEM 指标（运移比 TR）</th><th>数值</th><th>说明 / 判据</th></tr>`+cutCmp+
+KPe.innerHTML = window.uout(`<tr><th>CFD-DEM 指标（运移比 TR）</th><th>数值</th><th>说明 / 判据</th></tr>`+cutCmp+
         `<tr><td>最小运移比 TR（最危险段）</td><td style="color:var(--accent)"><b>${w.TR.toFixed(3)}</b></td>
           <td>@ MD ${w.md.toFixed(0)} m / 井斜 ${w.inc.toFixed(1)}°；TR=v̄<sub>p</sub>/V<sub>loc</sub> ⇒ 颗粒仅以局部流速的 ${(w.TR*100).toFixed(0)}% 上返</td></tr>
          <tr><td>该段几何流速 V<sub>ann</sub></td><td>${w.V.toFixed(3)} m/s</td><td>Q / A<sub>ann</sub>（按名义井径）</td></tr>
@@ -11649,7 +12119,7 @@ function runCalc(fromUser){
          <tr><td>井径修正因子</td><td>${dhF.toFixed(3)}</td><td>标定基准 215.9mm；最危险段井径 ${(dhAt(w.md)*1000).toFixed(1)}mm${calUsed?'（井径剖面逐段取值；标称 '+DhMM0+'mm）':'（全井标称）'}（井径每增 14.1mm，TR 折减 0.15）</td></tr>
          <tr><td>偏心度 e（全井加权）/ 窄边亏流系数 κ</td><td>${eccMode==='inc'?eccUse.toFixed(2)+'（按井斜）':eccFix.toFixed(2)+'（固定）'} / ${kappa.toFixed(3)}</td>
           <td>V<sub>loc</sub>=V<sub>ann</sub>·κ；κ 用<b>全井加权 e</b> 作代表值，逐段 TR/床高查询用的是<b>该段 e(θ)</b>；狗腿度 DLS 已逐段放大（×2.2 封顶）</td></tr>
-         <tr><td>临界角带（30~45°）</td><td>TR 谷底</td><td>CFD-DEM 标定面在 θ≈30~45° 取最小值 ⇒ 该带最难携带（现场"临界角"）</td></tr>`;
+         <tr><td>临界角带（30~45°）</td><td>TR 谷底</td><td>CFD-DEM 标定面在 θ≈30~45° 取最小值 ⇒ 该带最难携带（现场"临界角"）</td></tr>`);
       let h='<tr><th>井深 m</th><th>井斜°</th><th>井径 mm</th><th>V_ann m/s</th><th>V_eff m/s</th><th>TR</th><th>v_p m/s</th><th>h* 间隙</th><th>床堵</th><th>流型</th></tr>';
       cutSegs.forEach(s=>{
         const reg=s.hStar<0.05?'<span class="tag lam" style="background:#e6f5ea;color:var(--ok)">清洁</span>'
@@ -11660,9 +12130,8 @@ function runCalc(fromUser){
           <td>${s.vp.toFixed(3)}</td><td>${(s.hStar*100).toFixed(2)}%</td>
           <td>${s.block.toFixed(2)}%</td><td>${reg}</td></tr>`;
       });
-      TRe.innerHTML=h;
-      document.getElementById('dfemNote').innerHTML=
-        `<b>当前引擎：CFD-DEM 运移比 TR（降阶 CFD-DEM 内核）。</b>模型链：真二维离散元（软球·滞回法向+库仑切向+滚动阻力）
+TRe.innerHTML = window.uout(h);
+document.getElementById('dfemNote').innerHTML = window.uout(`<b>当前引擎：CFD-DEM 运移比 TR（降阶 CFD-DEM 内核）。</b>模型链：真二维离散元（软球·滞回法向+库仑切向+滚动阻力）
          + 逐列一维润滑方程双向耦合 → 稳态运移比 <b>TR = v̄<sub>p</sub>/V<sub>loc</sub></b> → 颗粒上返 v<sub>p</sub>=TR·V<sub>eff</sub>
          → 沿轨迹逐段积分 Cut Time。<br>
          <b>判据说明：</b>TR 越低 ⇒ 颗粒滞后越严重。内核标定面显示 <b>θ≈30~45° 取谷底（TR 最小）</b>，
@@ -11677,7 +12146,7 @@ function runCalc(fromUser){
              if(w.inc>=30&&w.inc<=45) out.push(`<li><span style="color:var(--warn)">[注意]</span> 最危险段井斜 ${w.inc.toFixed(1)}° 落在临界角带（30~45°）</li>`);
              return out.join('')||'<li>无</li>';
            })()
-         }</ul>`;
+         }</ul>`);
       drawEngCurve(false);
     }
   })();
@@ -11701,10 +12170,10 @@ function runCalc(fromUser){
 
     const Dhw=dhAt(w.md);                 /* ★ 代表段局部井径（井径剖面插值） */
     const r0=w.r, DpW=w.od/1000;
-    if(ctxEl) ctxEl.innerHTML='<br>当前：D<sub>h</sub>='+(Dh*1000).toFixed(1)+' mm'+(calUsed?'（<b>井径剖面已启用</b>，代表段 D<sub>h</sub>='+(Dhw*1000).toFixed(1)+' mm）':'（全井标称）')+' ｜ Q='+(Q*1000).toFixed(1)+' L/s ｜ ρ='
+if(ctxEl) ctxEl.innerHTML = window.uout('<br>当前：D<sub>h</sub>='+(Dh*1000).toFixed(1)+' mm'+(calUsed?'（<b>井径剖面已启用</b>，代表段 D<sub>h</sub>='+(Dhw*1000).toFixed(1)+' mm）':'（全井标称）')+' ｜ Q='+(Q*1000).toFixed(1)+' L/s ｜ ρ='
       +rhoUse.toFixed(0)+' kg/m³ ｜ K<sub>'+(nsKMode==='pv'?'PV':'H-B')+'</sub>='+Kns.toFixed(4)
       +' ｜ n='+npl.toFixed(4)+' ｜ τ<sub>y</sub>='+YPeff.toFixed(2)
-      +' Pa ｜ N='+nsN+' ｜ 闭合='+nsMode+' ｜ κ='+nsKap.toFixed(2);
+      +' Pa ｜ N='+nsN+' ｜ 闭合='+nsMode+' ｜ κ='+nsKap.toFixed(2));
     /* ③ 的真实口径：Bingham 塑性体（n = 1.0，K = K_eff）+ 同心狭缝解析 —— 与 ③ 逐段表完全同口径 */
     const phi7=solveLaminarDpdz(Q,Dhw/2,DpW/2,(Dhw-DpW)/4,YPeff,Keff,lamN)*r0.fEcc;   /* 跟随 ③ 的本构开关 */
     /* 同口径对照：③ 若也改用 H-B（n = n_pl）会得到多少 —— 用于把总差拆成「本构」与「数值方法」两部分 */
@@ -11724,8 +12193,7 @@ function runCalc(fromUser){
     const dP7=(turbCount===secs.length)?dPt:dPl;
     const Tw7=Math.abs(phi7)*(Dhw/2)/2;
 
-    KPe.innerHTML=
-      '<tr><th>指标（整井 / 代表段）</th>'
+KPe.innerHTML = window.uout('<tr><th>指标（整井 / 代表段）</th>'
       +'<th>③ 狭缝近似<br><span style="font-weight:400;font-size:10.5px;color:var(--sub)">工程口径：<b>Bingham 塑性体</b>（τ=τ<sub>y</sub>+PV·γ̇, n=1）<br>+ 同心狭缝解析 · 紊流用 Dodge–Metzner</span></th>'
       +'<th>⑪ N-S 动量方程<br><span style="font-weight:400;font-size:10.5px;color:var(--sub)">第一性原理：<b>H-B 本构</b>（τ=τ<sub>y</sub>+K·γ̇<sup>n</sup>, n=n<sub>pl</sub>）<br>+ 柱坐标 N-S 数值解</span></th>'
       +'<th>被顶部 KPI 采用</th></tr>'
@@ -11771,7 +12239,7 @@ function runCalc(fromUser){
       +'<tr><td>壁面剪切率 γ̇<sub>w</sub>（内/外）</td><td>—</td><td>'+Math.abs(r0.gwi).toFixed(1)+' / '+Math.abs(r0.gwo).toFixed(1)+' s⁻¹</td>'
         +'<td style="text-align:left;font-size:11px">钻杆壁 / 井壁</td></tr>'
       +'<tr><td>最大流速 u<sub>max</sub></td><td>—</td><td>'+umax.toFixed(4)+' m/s</td>'
-        +'<td style="text-align:left;font-size:11px">u<sub>max</sub>/V̄ = '+(umax/Math.max(r0.Vmean,1e-9)).toFixed(3)+'（剖面扁平度）</td></tr>';
+        +'<td style="text-align:left;font-size:11px">u<sub>max</sub>/V̄ = '+(umax/Math.max(r0.Vmean,1e-9)).toFixed(3)+'（剖面扁平度）</td></tr>');
 
     let h='<tr><th>钻具段</th><th>OD<br>mm</th><th>间隙<br>mm</th><th>L<br>m</th><th>V_ann<br>m/s</th>'
         +'<th>Φ③<br>Pa/m</th><th>Φ⑪<br>Pa/m</th><th>Δp③<br>kPa</th><th>Δp⑪<br>kPa</th><th>偏差<br>%</th><th>Re</th><th>流态</th><th>λ⑪<br>mm</th></tr>';
@@ -11790,10 +12258,9 @@ function runCalc(fromUser){
         +'<td style="color:'+((dv!==null&&Math.abs(dv)>10)?'var(--accent)':'')+'">'+(dv!==null?dv.toFixed(1):'—')+'</td>'
         +'<td>'+rr.Re.toFixed(0)+'</td><td>'+reg+'</td><td>'+(rr.lam*1000).toFixed(1)+'</td></tr>';
     });
-    TRe.innerHTML=h;
+TRe.innerHTML = window.uout(h);
 
-    document.getElementById('nsNote').innerHTML=
-      '<b>模型假设与局限：</b>①充分发展（入口/出口效应不计，长井段适用）；②轴对称同心求解，<b>偏心</b>以摩阻修正系数 f<sub>ecc</sub> 计入（与 ③ 一致），未解周向分布；'
+document.getElementById('nsNote').innerHTML = window.uout('<b>模型假设与局限：</b>①充分发展（入口/出口效应不计，长井段适用）；②轴对称同心求解，<b>偏心</b>以摩阻修正系数 f<sub>ecc</sub> 计入（与 ③ 一致），未解周向分布；'
       +'③层流为 N-S 精确解（与同心环空牛顿解析解误差 &lt;0.01%，网格 N=121），紊流为 N-S + Prandtl 涡粘性闭合（与 Dodge–Metzner 经验式偏差约 13%）；'
       +'④未计入钻具旋转；⑤ECD 的摩擦项由 Φ·L 沿轨迹累积，重力项不计入（ECD 定义即"静态密度 + 循环摩擦附加"）。'
       +'<br><b>与 ③ 的关系：</b>③ 用同心狭缝解析式（快、工程口径）+ <b>Bingham 塑性体本构</b>（n=1）；⑪ 用柱坐标 N-S 数值解（第一性原理、给出完整剖面）+ <b>H-B 本构</b>（n=n<sub>pl</sub>）。'
@@ -11812,7 +12279,7 @@ function runCalc(fromUser){
             + '（例如 Re=4012 的段若选“强制层流解”，仍按层流解算并标为层流）。'
             + '若要让「流态」列严格反映 Re 判据，请把闭合模式设为「自动（按 Re 判定）」。'
             + '<br>「Re」列始终是按 Metzner–Reed 广义雷诺数算出的<b>物理判据</b>（临界 2100），不受闭合模式影响。';
-        })();
+        })());
 
     drawNSProfile(w, {on:!isNS, phi:phi7, b:(Dhw-DpW)/4, ty:YPeff, K:Kns, n:npl});
   })();
@@ -11821,7 +12288,16 @@ function runCalc(fromUser){
   (function(){
     const K=document.getElementById('lossKpiTbl'); if(!K) return;
     const gv=id=>{const e=document.getElementById(id);return e?e.value:''};
-    const gn=id=>{const x=parseFloat(gv(id));return isFinite(x)?x:NaN};
+    const gn=id=>{const e=document.getElementById(id); if(!e) return NaN;
+  const raw=e.value; if(raw===''||raw===null) return NaN;
+  const x=parseFloat(raw); if(!isFinite(x)) return NaN;
+  const UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+  const k=UK[id]||'none';
+  if(k==='none') return x;
+  const U=(typeof window!=='undefined'&&window.ECDUnits);
+  if(!U) return x;
+  const b=U.toBase(k,x);
+  return (b===null||typeof b!=='number'||!isFinite(b))?NaN:b;};
 
     /* --- 井筒压力剖面（井口→井底）：静液柱 + 累积环空摩阻 --- */
     const lossProf=[];
@@ -11940,7 +12416,16 @@ function runCalc(fromUser){
     try{ renderLeakModel(lpModel, lpMp, lpAz, res); }catch(e1){ console.warn('[leakModel]',e1); }
     try{
       var gvm=id=>{const e2=document.getElementById(id);return e2?e2.value:''};
-      var gnm=id=>{const x=parseFloat(gvm(id));return isFinite(x)?x:NaN};
+      var gnm=id=>{const e2=document.getElementById(id); if(!e2) return NaN;
+  const raw=e2.value; if(raw===''||raw===null) return NaN;
+  const x=parseFloat(raw); if(!isFinite(x)) return NaN;
+  const UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+  const k=UK[id]||'none';
+  if(k==='none') return x;
+  const U=(typeof window!=='undefined'&&window.ECDUnits);
+  if(!U) return x;
+  const b=U.toBase(k,x);
+  return (b===null||typeof b!=='number'||!isFinite(b))?NaN:b;};
       var rateIn=gnm('lmRate');
       var rate=(isFinite(rateIn)&&rateIn>=0)?rateIn:((res&&res.ok&&isFinite(res.qLoss))?res.qLoss*3.6:NaN);
       var mj=MECH.judge({
@@ -11999,7 +12484,7 @@ function runCalc(fromUser){
       t+='<br><span style="color:var(--sub)">口径：漏点由「环空压力 P<sub>ann</sub>(z) 与地层漏失压力 P<sub>leak</sub>(z) 的交叉点」决定，'
        + 'P<sub>ann</sub> = 静液柱(ρ,TVD) + 累积环空摩阻。钻头位置<b>只影响摩阻项中"钻头以下床段"那一段</b>，'
        + '与静液柱无关 ⇒ 它与漏点是<b>间接、单通道</b>关系，不是直接决定关系；漏点本身是地层薄弱层的位置。</span>';
-      el.innerHTML=t;
+el.innerHTML = window.uout(t);
     })();
 
     /* ---- ⑬ 掉块 / 井壁稳定诊断（随输入实时重算） ---- */
@@ -12049,8 +12534,8 @@ function runCalc(fromUser){
       const gvv=id=>{const e=document.getElementById(id);const x=parseFloat(e?e.value:'');return isFinite(x)?x:NaN;};
       const f=(x,d)=>((x===null||x===undefined||!isFinite(x))?'–':Number(x).toFixed(d===undefined?1:d));
       if(!res||!res.ok||res.z===null){
-        T.innerHTML='<tr><td>未定位到漏点 → 无法设计封堵段（请先确保 ① 压力剖面法或 ③ 泵压法给出有效漏点）</td></tr>';
-        if(NT) NT.innerHTML=''; return;
+T.innerHTML = window.uout('<tr><td>未定位到漏点 → 无法设计封堵段（请先确保 ① 压力剖面法或 ③ 泵压法给出有效漏点）</td></tr>');
+if(NT) NT.innerHTML = window.uout(''); return;
       }
       const padIn=gvv('lpPlugPad'); const padV=(isFinite(padIn)&&padIn>=0)?padIn:50;
       let z1=gvv('lpPlugTop'), z2=gvv('lpPlugBot');
@@ -12078,8 +12563,7 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
         Vuse+=Math.PI/4*Math.max(0,Dhm*Dhm-dp*dp)*dm;
       }
       const Vslurry=Vuse*Kk;
-      T.innerHTML=
-        `<tr><th>项目</th><th>数值</th><th>说明</th></tr>
+T.innerHTML = window.uout(`<tr><th>项目</th><th>数值</th><th>说明</th></tr>
          <tr><td><b>★ 封堵段（斜深 MD）</b></td><td><b style="color:var(--accent2);font-size:13px">${f(z1,0)} ~ ${f(z2,0)} m</b></td>
            <td>段长 <b>${f(z2-z1,1)} m</b>；漏点 ${f(res.z,0)} m ± 扩边 ${f(padV,0)} m</td></tr>
          <tr><td>漏点在段内位置</td><td>自段顶 ${f(res.z-z1,1)} m</td>
@@ -12091,7 +12575,7 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
          <tr><td><b>推荐注入浆量</b></td><td><b style="color:var(--accent)">${f(Vslurry,2)} m³</b></td>
            <td>过流容积 × 附加系数 ${f(Kk,2)}</td></tr>
          <tr><td>折算地面配浆量</td><td>${f(Vslurry*1000,0)} L</td>
-           <td>1 m³ = 1000 L；材料用量请按配浆密度另行折算</td></tr>`;
+           <td>1 m³ = 1000 L；材料用量请按配浆密度另行折算</td></tr>`);
       const tips=[];
       tips.push('<b>下钻按斜深定位：</b>封堵段 <b>'+f(z1,0)+' ~ '+f(z2,0)+' m</b>。'+
         (openHole?'当前钻头在 '+f(bitMd,0)+' m（位于封堵段<b>以上</b>）→ 裸眼注入，浆量按全井眼截面计。'
@@ -12099,7 +12583,7 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
       tips.push('扩边余量：碳酸盐岩裂缝型 30~50 m；砂岩 / 断层破碎带 50~100 m；漏层厚度不明时<b>向上多留</b>（更易在薄弱处桥堵）。');
       tips.push('损耗：裂缝型漏层实际耗浆常为几何容积的 1.5~3 倍，附加系数须按本井漏失史与邻井经验上调；可先注隔离液再注封堵浆。');
       tips.push('注浆后按<b>斜深</b>把钻具提至封堵段顶以上 ≥30 m 的循环位置再憋压候凝，避免钻具被水泥浆封死。');
-      if(NT) NT.innerHTML='<b>封堵施工要点：</b><ul style="margin:5px 0 0 16px">'+tips.map(t=>'<li style="margin-bottom:4px">'+t+'</li>').join('')+'</ul>';
+if(NT) NT.innerHTML = window.uout('<b>封堵施工要点：</b><ul style="margin:5px 0 0 16px">'+tips.map(t=>'<li style="margin-bottom:4px">'+t+'</li>').join('')+'</ul>');
     })();
   })();
 
@@ -12116,9 +12600,9 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
     if(g('sECD'))  g('sECD').textContent=Eshow.toFixed(3);
     if(g('sECDc')) g('sECDc').textContent=EshowC.toFixed(3);
     if(g('sCut'))  g('sCut').textContent=cutT.toFixed(1);
-    if(g('sECDL')) g('sECDL').innerHTML='井底 ECD · 不含岩屑 (SG)<br><span style="font-size:10px;color:var(--sub)">引擎：'+cEng+'</span>';
-    if(g('sECDcL'))g('sECDcL').innerHTML='井底 ECD · 含岩屑 (SG)<br><span style="font-size:10px;color:var(--sub)">三项合计 +'+(Ec_lam-Elam).toFixed(4)+' SG</span>';
-    if(g('sCutL')) g('sCutL').innerHTML='Cut Time 循环周期 (min)<br><span style="font-size:10px;color:var(--sub)">主引擎：'+(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S(平均)':(vpEngine==='nsl'?'N-S 低边耦合':'CFD-DEM')))+'</span>';
+if(g('sECDL')) g('sECDL').innerHTML = window.uout('井底 ECD · 不含岩屑 (SG)<br><span style="font-size:10px;color:var(--sub)">引擎：'+cEng+'</span>');
+if(g('sECDcL'))g('sECDcL').innerHTML = window.uout('井底 ECD · 含岩屑 (SG)<br><span style="font-size:10px;color:var(--sub)">三项合计 +'+(Ec_lam-Elam).toFixed(4)+' SG</span>');
+if(g('sCutL')) g('sCutL').innerHTML = window.uout('Cut Time 循环周期 (min)<br><span style="font-size:10px;color:var(--sub)">主引擎：'+(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S(平均)':(vpEngine==='nsl'?'N-S 低边耦合':'CFD-DEM')))+'</span>');
 
     /* 最难运移段（TR 最低） */
     let wTR=null,wBed=null,restMin=0;
@@ -12174,7 +12658,7 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
       +(Qoff
         ? '<td style="text-align:left"><b style="color:var(--warn)">停泵（Q=0）无循环</b>：含屑 ECD 退化为静止井底 ECD，岩屑全部沉降、无悬浮浓度（C_v=0）— 该值不代表携岩工况</td>'
         : '<td style="text-align:left">静态 = 停泵不循环（温压修正后）；动态 = 循环含岩屑 ECD　｜ 岩屑使 ECD 增加 <b>+'+(drho*Cv/1000).toFixed(4)+' SG</b></td>')+'';
-    T.innerHTML=h;
+T.innerHTML = window.uout(h);
 
     /* 结论与建议 */
     let adv=[];
@@ -12190,12 +12674,12 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
     }
     if(wCTR && wCTR.raw.CTR<65) adv.push('DFEM 口径 CTR 最低 '+wCTR.raw.CTR.toFixed(1)+'%（MD '+wCTR.md.toFixed(0)+' m）');
     const nt=document.getElementById('sumNote');
-    if(nt) nt.innerHTML='<b>结论：</b>'+adv.join('；')+'。<br>'
+if(nt) nt.innerHTML = window.uout('<b>结论：</b>'+adv.join('；')+'。<br>'
       +'<span style="color:var(--sub)">提示：① 的 TR 来自 ⑤（CFD-DEM 运移比内核）；③④ 的 CTR / C<sub>conc</sub> 来自 ⑥（DFEM Walker &amp; Mayes）。'
       +'井斜 25~65° 为现场公认的\"临界角\"区，床层界面与流向斜交，颗粒既沉不下去也带不走，是全井最难清洁的井段类型。'
       +(calS?'<br><b style="color:var(--accent)">井径剖面已启用</b>：局部井径 '+((calS.dMin*1000).toFixed(1))+'~'+((calS.dMax*1000).toFixed(1))+' mm（标称 '+DhMM0+' mm，平均 '+(calS.dAvg*1000).toFixed(1)+' mm）→ 扩径段 '+calS.wide.length+' 段、缩径段 '+calS.narrow.length+' 段，'
           +'返速/ECD/床高均已按局部井径逐段重算（见 ⑧⑨④⑤⑥ 各表的「井径」列）；<b>大肚子段流速低易沉砂、缩径段 ECD 高易憋泵</b>，二者是遇卡高发位置。注意 ② 各结论的深度判据同步受井径剖面影响。':'')
-      +'</span>';
+      +'</span>');
   })();
 
   /* ---- ⑭ 当前工况响应图：写入当前工况并重绘 ---- */
@@ -12253,10 +12737,10 @@ const Dhm=(function(){const a=gvv('lpPlugDh'),b=gvv('Dhole');return (isFinite(a)
       if(btn){
         if(!btn.dataset.orig) btn.dataset.orig=btn.innerHTML;
         btn.classList.add('pulse');
-        btn.innerHTML='✓ 已计算';
+btn.innerHTML = window.uout('✓ 已计算');
         clearTimeout(btn._fb);
         btn._fb=setTimeout(function(){
-          btn.innerHTML=btn.dataset.orig; btn.classList.remove('pulse');
+btn.innerHTML = window.uout(btn.dataset.orig); btn.classList.remove('pulse');
         },900);
       }
     }
@@ -12309,7 +12793,7 @@ function drawEngCurve(isDfem){
              +' @'+mn.md.toFixed(0)+'m/'+mn.inc.toFixed(0)+'°', X(mn.md)+6, Y(val(mn))+13);
   x.fillStyle="#5c6b7a";
   x.fillText(isDfem?'CTR 岩屑输送比':'运移比 TR = v̄_p/V_loc', 6, 12);
-  x.textAlign="right"; x.fillText("井深 MD (m) →",W-6,H-8);
+  x.textAlign="right"; x.fillText("井深 MD ("+window.UL("len")+") →",W-6,H-8);
 }
 
 /* CFD-DEM 运移比 TR 沿井深曲线 */
@@ -12342,7 +12826,7 @@ function drawTR(){
   x.fillStyle="#c8332a"; x.beginPath(); x.arc(X(mn.md),Y(mn.TR),3.5,0,Math.PI*2); x.fill();
   x.textAlign="left"; x.fillText(`TR_min=${mn.TR.toFixed(3)} @${mn.md.toFixed(0)}m/${mn.inc.toFixed(0)}°`, X(mn.md)+6, Y(mn.TR)-5);
   x.fillStyle="#5c6b7a"; x.textAlign="left"; x.fillText("TR = v̄_p/V_loc",6,12);
-  x.textAlign="right"; x.fillText("井深 MD (m) →",W-6,H-8);
+  x.textAlign="right"; x.fillText("井深 MD ("+window.UL("len")+") →",W-6,H-8);
 }
 
 function drawECD(turb,lam,cAdd,mudSG){
@@ -12353,10 +12837,10 @@ function drawECD(turb,lam,cAdd,mudSG){
   const maxV=Math.max(mudSG+fL+cAdd,0.1)*1.15,bw=(W-pad-8)/bars.length;
   bars.forEach((b,i)=>{const h=(b[1]/maxV)*(H-38),bx=pad+i*bw+3;
     x.fillStyle=b[2];x.fillRect(bx,H-24-h,bw-6,h);
-    x.fillStyle="#1f2933";x.textAlign="center";x.fillText(b[1].toFixed(3),bx+(bw-6)/2,H-28-h);
+    x.fillStyle="#1f2933";x.textAlign="center";x.fillText(window.UU('rho',b[1]).toFixed(3),bx+(bw-6)/2,H-28-h);
     x.fillStyle="#5c6b7a";x.fillText(b[0],bx+(bw-6)/2,H-10);});
   x.strokeStyle="#c9d4e0";x.beginPath();x.moveTo(pad,0);x.lineTo(pad,H-24);x.lineTo(W,H-24);x.stroke();
-  x.fillStyle="#5c6b7a";x.textAlign="left";x.fillText("SG",4,11);
+  x.fillStyle="#5c6b7a";x.textAlign="left";x.fillText("ECD ("+window.UL("rho")+")",4,11);
   x.fillStyle="#c8332a";x.fillText("ECD(紊)="+turb.toFixed(3),pad+2,11);
 }
 function drawVel(labels,vs){
@@ -12365,10 +12849,10 @@ function drawVel(labels,vs){
   const maxV=Math.max(...vs,0.5)*1.2,bw=(W-pad-8)/vs.length;
   vs.forEach((v,i)=>{const h=(v/maxV)*(H-38),bx=pad+i*bw+3;
     x.fillStyle="#1a63c4";x.fillRect(bx,H-24-h,bw-6,h);
-    x.fillStyle="#1f2933";x.textAlign="center";x.fillText(v.toFixed(2),bx+(bw-6)/2,H-28-h);
+    x.fillStyle="#1f2933";x.textAlign="center";x.fillText(window.UU('rho',v).toFixed(2),bx+(bw-6)/2,H-28-h);
     x.fillStyle="#5c6b7a";x.fillText(labels[i],bx+(bw-6)/2,H-10);});
   x.strokeStyle="#c9d4e0";x.beginPath();x.moveTo(pad,0);x.lineTo(pad,H-24);x.lineTo(W,H-24);x.stroke();
-  x.fillStyle="#5c6b7a";x.textAlign="left";x.fillText("m/s",4,11);
+  x.fillStyle="#5c6b7a";x.textAlign="left";x.fillText(window.UL("vel"),4,11);
 }
 /* ============================================================================
  *  环空岩屑运移 3D 粒子云（网页版 fig3）
@@ -12502,7 +12986,7 @@ function g3dStatus(){
   const el=document.getElementById('c3dStat');
   if(el) el.textContent=G3D.play?'● 动画运行中':'❚❚ 已暂停（单击继续）';
   const btn=document.getElementById('c3dPlay');
-  if(btn) btn.innerHTML=G3D.play?'⏸ 暂停':'▶ 播放';
+if(btn) btn.innerHTML = window.uout(G3D.play?'⏸ 暂停':'▶ 播放');
 }
 function g3dReset(){
   G3D.az=-0.35; G3D.elev=0.34; G3D.zoom=1; G3D.t=0; G3D.view=0;
@@ -12689,7 +13173,7 @@ function drawLiveB(){
   lvGrid(x,W,H,pad,padR,yt);
   /* 右轴 V_ann */
   x.fillStyle="#93a6b9"; x.textAlign="left";
-  for(var k=0;k<=4;k++){ var vv=vmax*k/4; x.fillText(vv.toFixed(1), W-padR+5, Yv(vv)+3); }
+  for(var k=0;k<=4;k++){ var vv=vmax*k/4; x.fillText(window.UU('vel',vv).toFixed(1), W-padR+5, Yv(vv)+3); }
   x.fillStyle="#93a6b9"; x.strokeStyle="#93a6b9"; x.lineWidth=1.8; x.beginPath();
   va.forEach(function(v,kk){ kk?x.lineTo(X(Qs[kk]),Yv(v)):x.moveTo(X(Qs[kk]),Yv(v)); }); x.stroke();
   /* TR */
@@ -12703,9 +13187,9 @@ function drawLiveB(){
   x.beginPath(); x.moveTo(X(Q0),12); x.lineTo(X(Q0),H-22); x.stroke(); x.setLineDash([]);
   x.fillStyle="#c8332a"; x.textAlign="center"; x.fillText("当前 "+Q0.toFixed(1)+" L/s", X(Q0), 10);
   /* 轴名 */
-  x.fillStyle="#5c6b7a"; x.textAlign="center"; x.fillText("排量 Q (L/s)", (pad+W-padR)/2, H-6);
+  x.fillStyle="#5c6b7a"; x.textAlign="center"; x.fillText("排量 Q ("+window.UL("flow")+")", (pad+W-padR)/2, H-6);
   x.textAlign="left"; x.fillText("CTE% / TR%", 6, 12);
-  x.textAlign="right"; x.fillStyle="#93a6b9"; x.fillText("V_ann (m/s)", W-8, 12);
+  x.textAlign="right"; x.fillStyle="#93a6b9"; x.fillText("V_ann ("+window.UL("vel")+")", W-8, 12);
   /* 图例 */
   x.textAlign="left"; x.fillStyle="#1a63c4"; x.fillRect(pad+8,18,16,3);
   x.fillStyle="#5c6b7a"; x.fillText("CTE", pad+28, 22);
@@ -12745,7 +13229,7 @@ function drawLiveC(){
   x.strokeStyle="#c9d4e0"; x.lineWidth=1; x.strokeRect(pad, H-padB-ni*chh, nq*cw, ni*chh);
   x.font="10px Consolas"; x.fillStyle="#5c6b7a";
   x.textAlign="center";
-  for(i=0;i<=4;i++){ var qv=qmin+(qmax-qmin)*i/4; x.fillText(qv.toFixed(1), pad+nq*cw*i/4, H-14); }
+  for(i=0;i<=4;i++){ var qv=qmin+(qmax-qmin)*i/4; x.fillText(window.UU('flow',qv).toFixed(1), pad+nq*cw*i/4, H-14); }
   x.textAlign="right";
   for(j=0;j<=4;j++){ var iv=imin+(imax-imin)*j/4; x.fillText(iv.toFixed(0)+'°', pad-5, H-padB-ni*chh*j/4+3); }
   /* 色标 */
@@ -12769,7 +13253,7 @@ function drawLiveC(){
   x.fillStyle="#c8332a"; x.textAlign="left";
   x.fillText("当前", Math.min(cxp+9, W-padR-46), Math.max(cyp-9, padT+9));
   x.fillStyle="#5c6b7a"; x.textAlign="center";
-  x.fillText("排量 Q (L/s)", pad+nq*cw/2, H-3);
+  x.fillText("排量 Q ("+window.UL("flow")+")", pad+nq*cw/2, H-3);
   /* 顶注 */
   x.fillStyle="#5c6b7a"; x.textAlign="left"; x.font="10px Consolas";
   x.fillText("色阶 = CTE 携岩效率（当前工况扫描）", pad, 13);
@@ -12777,10 +13261,10 @@ function drawLiveC(){
 function drawLiveFigs(){
   try{
     var ctxEl=document.getElementById('liveCtx');
-    if(ctxEl) ctxEl.innerHTML='<br>当前工况：D<sub>h</sub>='+(LIVE.Dh*1000).toFixed(1)+' mm ｜ 代表段钻具 Ø'+(LIVE.DpBot*1000).toFixed(1)
+if(ctxEl) ctxEl.innerHTML = window.uout('<br>当前工况：D<sub>h</sub>='+(LIVE.Dh*1000).toFixed(1)+' mm ｜ 代表段钻具 Ø'+(LIVE.DpBot*1000).toFixed(1)
       +' mm（本井最不利段 MD '+LIVE.repMD.toFixed(0)+' m / θ='+LIVE.repInc.toFixed(1)+'°）｜ Q='+LIVE.Q0.toFixed(1)
       +' L/s ｜ V<sub>ann</sub>='+liveVann(LIVE.Q0).toFixed(3)+' m/s ｜ e='+LIVE.ecc.toFixed(2)
-      +'(κ='+LIVE.kappa.toFixed(3)+') ｜ ROP='+val('ROP')+' m/h ｜ ρ<sub>m</sub>='+val('rho')+' SG ｜ d<sub>c</sub>='+val('dp')+' mm';
+      +'(κ='+LIVE.kappa.toFixed(3)+') ｜ ROP='+val('ROP')+' m/h ｜ ρ<sub>m</sub>='+val('rho')+' SG ｜ d<sub>c</sub>='+val('dp')+' mm');
     drawLiveA(); drawLiveB(); drawLiveC();
     var nt=document.getElementById('liveNote');
     if(nt){
@@ -12791,9 +13275,9 @@ function drawLiveFigs(){
         line='本井最不利段：MD '+w.md.toFixed(0)+' m / 井斜 '+w.inc.toFixed(1)+'° → CTE '+w.raw.CTR.toFixed(1)+'%、V<sub>ann</sub> '
           +w.raw.VANN_mps.toFixed(3)+' m/s、V<sub>SLIP</sub> '+w.raw.VSLIP_mps.toFixed(3)+' m/s、v<sub>p</sub> '+w.vp.toFixed(3)+' m/s。';
       }
-      nt.innerHTML='<b>图B / 图C 的井斜取「本井最不利段」θ='+LIVE.repInc.toFixed(1)+'°</b>（CTE 最低段，携岩最困难处）。'
+nt.innerHTML = window.uout('<b>图B / 图C 的井斜取「本井最不利段」θ='+LIVE.repInc.toFixed(1)+'°</b>（CTE 最低段，携岩最困难处）。'
         +line+'引擎：CTE←DFEM Walker &amp; Mayes（⑥）；TR←CFD-DEM 运移比（⑤）。'
-        +'本组图的三条曲线与 ⑤/⑥ 两张逐段表使用<b>同一套参数与同一套引擎</b>，改动任一输入即同步刷新。';
+        +'本组图的三条曲线与 ⑤/⑥ 两张逐段表使用<b>同一套参数与同一套引擎</b>，改动任一输入即同步刷新。');
     }
   }catch(e){ console.warn('[live]', e); }
 }
@@ -12806,7 +13290,16 @@ function drawLiveFigs(){
  * ========================================================================== */
 function readLeakMp(){
   const gv=id=>{const e=document.getElementById(id);return e?e.value:''};
-  const gn=id=>{const x=parseFloat(gv(id));return isFinite(x)?x:NaN};
+  const gn=id=>{const e=document.getElementById(id); if(!e) return NaN;
+  const raw=e.value; if(raw===''||raw===null) return NaN;
+  const x=parseFloat(raw); if(!isFinite(x)) return NaN;
+  const UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+  const k=UK[id]||'none';
+  if(k==='none') return x;
+  const U=(typeof window!=='undefined'&&window.ECDUnits);
+  if(!U) return x;
+  const b=U.toBase(k,x);
+  return (b===null||typeof b!=='number'||!isFinite(b))?NaN:b;};
   const f=(v,d)=>isFinite(v)?v:d;
   const dtT=[1,2,3].map(i=>({h:gn('lpDtH'+i),d:gn('lpDtD'+i)})).filter(r=>isFinite(r.h)&&isFinite(r.d));
   let kan=f(gn('lpKan'),1.9); if(kan<1) kan=1/Math.max(kan,0.05);   /* S_t(90)/S_t(0) 必 ≥1 */
@@ -12829,7 +13322,16 @@ function readLeakMp(){
 window.lpCalib=function(){
   try{
     const gv=id=>{const e=document.getElementById(id);return e?e.value:''};
-    const gn=id=>{const x=parseFloat(gv(id));return isFinite(x)?x:NaN};
+    const gn=id=>{const e=document.getElementById(id); if(!e) return NaN;
+  const raw=e.value; if(raw===''||raw===null) return NaN;
+  const x=parseFloat(raw); if(!isFinite(x)) return NaN;
+  const UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+  const k=UK[id]||'none';
+  if(k==='none') return x;
+  const U=(typeof window!=='undefined'&&window.ECDUnits);
+  if(!U) return x;
+  const b=U.toBase(k,x);
+  return (b===null||typeof b!=='number'||!isFinite(b))?NaN:b;};
     const L=window.__loss;
     const tvdRef=(L&&L.ok&&isFinite(L.tvdBottom))?L.tvdBottom:0;
     if(!(tvdRef>0)){ alert('请先点「▶ 计算」跑一次（反标定需要井深 / 井筒压力剖面）'); return; }
@@ -12862,12 +13364,12 @@ function renderLeakModel(mprof, mp, azr, res){
   if(!T||!N) return;
   const f=(x,d)=>((x===null||x===undefined||!isFinite(x))?'–':Number(x).toFixed(d===undefined?0:d));
   if(!mp||mp.mode==='off'||!mprof||!mprof.ok){
-    T.innerHTML='<tr><td style="color:var(--sub)">'+(mp&&mp.mode==='off'
+T.innerHTML = window.uout('<tr><td style="color:var(--sub)">'+(mp&&mp.mode==='off'
         ? '未启用：P<sub>leak</sub> 取 A 块常数 <b>'+(res&&res.o?f(res.o.ppgLeak,3):'–')+' SG</b>'+
           (res&&res.o&&res.o.weakTop>0?('（薄弱层 '+f(res.o.weakTop,0)+'~'+f(res.o.weakBot,0)+' m 覆盖为 '+f(res.o.weakSG,3)+' SG）'):'')
         : '模型剖面无有效点（检查 S<sub>t</sub> / 地应力 / 井斜输入）')+
-      '<br><span style="font-size:11px">启用 A2 的「层理＋裂缝」模型后，P<sub>leak</sub> 将由井深/井斜/方位<b>逐点</b>给出，① 压力交叉与封堵段设计随之改变。</span></td></tr>';
-    N.innerHTML=''; return;
+      '<br><span style="font-size:11px">启用 A2 的「层理＋裂缝」模型后，P<sub>leak</sub> 将由井深/井斜/方位<b>逐点</b>给出，① 压力交叉与封堵段设计随之改变。</span></td></tr>');
+N.innerHTML = window.uout(''); return;
   }
   const rows=mprof.rows;
   const tvdBot=rows[rows.length-1].tvd;
@@ -12891,7 +13393,7 @@ function renderLeakModel(mprof, mp, azr, res){
        '<td><b style="color:'+(r.sg===rows[iMin].sg?'var(--accent)':'var(--txt)')+'">'+f(r.sg,3)+'</b></td>'+
        '<td>'+(r.ctrl==='frac'?'裂缝开启':'张性破裂')+'</td></tr>';
   });
-  T.innerHTML=h;
+T.innerHTML = window.uout(h);
 
   /* ---- 说明：区间 / 最危险点 / 方位风险 / 压力窗口 / 与 A 块对比 ---- */
   const o=res?res.o:null;
@@ -12946,7 +13448,7 @@ function renderLeakModel(mprof, mp, azr, res){
        (Math.abs(d)>0.15?'var(--accent)':'var(--ok)')+'">'+(d>0?'+':'')+f(d,3)+' SG</b>';
     t+=Math.abs(d)>0.15?'　→ 偏差偏大，建议点上方「⇄ 反标定」把 σ<sub>h</sub>/σ<sub>H</sub> 标到本井实测。':'　（一致性良好）';
   }
-  N.innerHTML=t;
+N.innerHTML = window.uout(t);
 }
 
 function renderMech(mj, res, mprof, mp){
@@ -12957,7 +13459,16 @@ function renderMech(mj, res, mprof, mp){
   const lvName={micro:'微漏（&lt;5 m³/h）',small:'小漏（5~15）',medium:'中漏（15~40）',severe:'大漏（&gt;40 m³/h）'}[mj.lvl]||'–';
   const lvCol={micro:'var(--ok)',small:'var(--ok)',medium:'var(--warn)',severe:'var(--accent)'}[mj.lvl]||'var(--sub)';
   const gv=id=>{const e=document.getElementById(id);return e?e.value:''};
-  const gn=id=>{const x=parseFloat(gv(id));return isFinite(x)?x:NaN};
+  const gn=id=>{const e=document.getElementById(id); if(!e) return NaN;
+  const raw=e.value; if(raw===''||raw===null) return NaN;
+  const x=parseFloat(raw); if(!isFinite(x)) return NaN;
+  const UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+  const k=UK[id]||'none';
+  if(k==='none') return x;
+  const U=(typeof window!=='undefined'&&window.ECDUnits);
+  if(!U) return x;
+  const b=U.toBase(k,x);
+  return (b===null||typeof b!=='number'||!isFinite(b))?NaN:b;};
   const sgObsIn=gn('lmSgObs');
   const sgObs=isFinite(sgObsIn)&&sgObsIn>0?sgObsIn:(isFinite(window.__ctsResult&&window.__ctsResult.EshowC)?window.__ctsResult.EshowC:NaN);
   const tvdRef=(res&&res.tvd!==null&&isFinite(res.tvd))?res.tvd:((res&&isFinite(res.tvdBottom))?res.tvdBottom:null);
@@ -12987,7 +13498,7 @@ function renderMech(mj, res, mprof, mp){
     h+='<tr><td>与「漏层类型」一致性</td><td><b style="color:var(--warn)">不一致</b></td>'+
        '<td style="font-size:11.5px">B 块选的是「'+mj.pickedName+'」，而证据判别为「<b>'+mj.mainName+'</b>」→ 请复核 B 块下拉；它只影响「漏失指数 m」的经验区间，不影响深度计算。</td></tr>';
   }
-  T.innerHTML=h;
+T.innerHTML = window.uout(h);
 
   let t='<b>判别依据：</b><ul style="margin:5px 0 0 16px">'+mj.ev.map(a=>'<li style="margin-bottom:3px">'+a+'</li>').join('')+'</ul>';
   if(mj.act&&mj.act.length){
@@ -12996,15 +13507,15 @@ function renderMech(mj, res, mprof, mp){
   }
   t+='<div style="margin-top:6px;color:var(--sub);font-size:11px">机理判别只依据「漏速/动态/复漏/漏失量/岩性/弱面发育」＋ 模型 P<sub>leak</sub> 的控制类型；'+
      '漏点<b>深度</b>仍以上方 6 判据加权结果为准。二者互补：先定机理（决定"堵什么"），再定深度（决定"堵哪里"）。</div>';
-  N.innerHTML=t;
+N.innerHTML = window.uout(t);
 }
 
 function renderLoss(res){
   const K=document.getElementById('lossKpiTbl'), M=document.getElementById('lossMethTbl'), N=document.getElementById('lossNote');
   if(!K) return;
   if(!res||!res.ok){
-    K.innerHTML='<tr><td>'+(res&&res.err?res.err:'无可用井筒压力剖面 → 无法诊断')+'</td></tr>';
-    if(M) M.innerHTML=''; if(N) N.innerHTML=''; return;
+K.innerHTML = window.uout('<tr><td>'+(res&&res.err?res.err:'无可用井筒压力剖面 → 无法诊断')+'</td></tr>');
+if(M) M.innerHTML = window.uout(''); if(N) N.innerHTML=''; return;
   }
   const o=res.o, m=res.m;
   const f=(x,d)=>((x===null||x===undefined||!isFinite(x))?'–':Number(x).toFixed(d===undefined?0:d));
@@ -13049,8 +13560,7 @@ function renderLoss(res){
         : '⚠ 放大 ×1.00 ⇒ 钻头位置<b>不参与</b>压力剖面计算，漏点与它无关（填任何值结果相同）'}</span></td></tr>`;
   }
 
-  K.innerHTML=
-   `<tr><th>诊断项</th><th>数值</th><th>说明</th></tr>
+K.innerHTML = window.uout(`<tr><th>诊断项</th><th>数值</th><th>说明</th></tr>
     <tr><td><b>★ 漏点斜深 MD</b><br><span style="font-size:11px;color:var(--sub)">封堵段设计 · 下钻定位 · 备浆量 —— 一律用此值</span></td>
       <td><b style="color:var(--accent2);font-size:15px">${res.z!==null?f(res.z,0)+' m':'未定'}</b></td>
       <td>6 判据按 <b>${res.isH?'水平井':'直井'}</b> 权重加权：${res.isH?'泵压 0.30 / 扭矩 0.25 / 压力交叉 0.15 / 温度 0.15':'压力交叉 0.32 / 泵压 0.25 / 悬重 0.25 / 温度 0.10'}</td></tr>
@@ -13093,7 +13603,7 @@ function renderLoss(res){
          ${(res.tvd!==null && res.lowerList.every(x=>res.tvd>=x.z-1))
            ? '<span style="color:var(--ok)">与综合结果一致 ✓</span>　当前漏点 TVD <b>'+f(res.tvd,0)+' m</b>高于下限 <b>'+
              f(res.tvd-Math.max.apply(null,res.lowerList.map(x=>x.z)),0)+' m</b>（本井该约束基本不收紧范围）'
-           : '<span style="color:var(--accent)">与综合结果的 TVD 矛盾 → 需复核实测数据</span>'}</td></tr>`:''}`;
+           : '<span style="color:var(--accent)">与综合结果的 TVD 矛盾 → 需复核实测数据</span>'}</td></tr>`:''}`);
 
   const rows=[
    ['① 压力剖面交叉法','cross','P_ann 首次超过 P_leak 的深度（主判据）'],
@@ -13115,7 +13625,7 @@ function renderLoss(res){
     h+=`<tr><td>${r[0]} ${st}</td><td>${zc}</td><td>${w.toFixed(2)}</td>
         <td style="font-size:11px">${(rr&&rr.note)?rr.note:r[2]}</td></tr>`;
   });
-  M.innerHTML=h;
+M.innerHTML = window.uout(h);
 
   const adv=[];
   if(!m.cross.ok){
@@ -13149,7 +13659,7 @@ function renderLoss(res){
   }else{
     adv.push('<b>直井提示</b>：TVD≈MD，压力剖面法与悬重法精度最高；<b>扭矩法在直井中对液面变化天然不敏感</b>（sinθ→0，正压力几无变化），故直井权重中扭矩为 0，属正常而非缺陷。');
   }
-  N.innerHTML='<b>处置建议：</b><ul style="margin:5px 0 0 16px">'+adv.map(a=>'<li style="margin-bottom:4px">'+a+'</li>').join('')+'</ul>';
+N.innerHTML = window.uout('<b>处置建议：</b><ul style="margin:5px 0 0 16px">'+adv.map(a=>'<li style="margin-bottom:4px">'+a+'</li>').join('')+'</ul>');
 }
 
 /* ============================================================================
@@ -13176,10 +13686,10 @@ function drawLossChart(res){
   x.strokeStyle="#eef2f7"; x.lineWidth=1;
   for(let i=0;i<=5;i++){ const yy=padT+(H-padT-padB)*i/5, tt=tvdMax*i/5;
     x.beginPath(); x.moveTo(padL,yy); x.lineTo(W-padR,yy); x.stroke();
-    x.fillStyle="#5c6b7a"; x.textAlign="right"; x.fillText(tt.toFixed(0), padL-5, yy+3); }
+    x.fillStyle="#5c6b7a"; x.textAlign="right"; x.fillText(window.UU('len',tt).toFixed(0), padL-5, yy+3); }
   for(let i=0;i<=5;i++){ const xx=padL+(W-padL-padR)*i/5, vv=pmax*i/5;
     x.beginPath(); x.moveTo(xx,padT); x.lineTo(xx,H-padB); x.stroke();
-    x.fillStyle="#5c6b7a"; x.textAlign="center"; x.fillText(vv.toFixed(0), xx, H-padB+13); }
+    x.fillStyle="#5c6b7a"; x.textAlign="center"; x.fillText(window.UU('p',vv).toFixed(0), xx, H-padB+13); }
   /* 曲线 */
   const line=(fn,col,w,dash)=>{ x.beginPath(); let first=true;
     prof.forEach(p=>{ const px=X(fn(p)), py=Y(p.tvd);
@@ -13266,9 +13776,9 @@ function drawLossChart(res){
   if(o.bitMd>0 && o.bitMd<prof[prof.length-1].z) item('#d4860a',[6,3],'钻头位置');
   /* 轴标 */
   x.fillStyle="#5c6b7a"; x.textAlign="center";
-  x.fillText("压力 (MPa)", padL+(W-padL-padR)/2, H-3);
+  x.fillText("压力 ("+window.UL("p")+")", padL+(W-padL-padR)/2, H-3);
   x.save(); x.translate(12, padT+(H-padT-padB)/2); x.rotate(-Math.PI/2);
-  x.fillText("TVD (m)", 0, 0); x.restore();
+  x.fillText("TVD ("+window.UL("len")+")", 0, 0); x.restore();
 }
 
 /* ============================================================================
@@ -13340,8 +13850,8 @@ function drawNSProfile(seg, o7){
   x.fillText("γ̇_w(井壁) = "+Math.abs(seg.r.gwo).toFixed(0), pad+4, H1-4);
   /* 轴名 */
   x.fillStyle="#5c6b7a"; x.textAlign="center";
-  x.fillText("壁距 y (mm)：0 = 钻杆壁， "+(h*1000).toFixed(1)+" = 井壁", (pad+W-padR)/2, H-8);
-  x.textAlign="left"; x.fillStyle="#1a63c4"; x.fillText("u (m/s)  [左轴]", 6, 11);
+  x.fillText("壁距 y ("+window.UL("dia")+")：0 = 钻杆壁， "+(h*1000).toFixed(1)+" = 井壁", (pad+W-padR)/2, H-8);
+  x.textAlign="left"; x.fillStyle="#1a63c4"; x.fillText("u ("+window.UL("vel")+")  [左轴]", 6, 11);
   x.textAlign="right"; x.fillStyle="#8a5d00"; x.fillText("γ̇ (1/s)  [右轴]", W-8, 11);
   /* 图例：③ 与 ⑪ 剖面区分（随「ECD 采用引擎」联动） */
   const lgY=H0+22;
@@ -13370,9 +13880,9 @@ const FIGLB={ i:0, on:false };
 function renderFigGallery(){
   const g=document.getElementById('figGrid'); if(!g) return;
   if(typeof FIGGAL==='undefined'){ g.innerHTML='<div class="note">⚠ 未内置 fig 图集。</div>'; return; }
-  g.innerHTML=FIG_ITEMS.map(([k,cap],i)=>
+g.innerHTML = window.uout(FIG_ITEMS.map(([k,cap],i)=>
     '<figure data-i="'+i+'" title="点击放大查看"><img src="'+FIGGAL[k]+'" alt="'+cap+'">'
-    +'<figcaption>'+cap+'</figcaption></figure>').join('');
+    +'<figcaption>'+cap+'</figcaption></figure>').join(''));
   Array.prototype.forEach.call(g.querySelectorAll('figure'), f=>{
     f.addEventListener('click', ()=>figLbOpen(+f.getAttribute('data-i')));
   });
@@ -13663,7 +14173,7 @@ bindFile('trajFile','traj'); bindFile('bhaFile','bha'); bindFile('calFile','cali
   }
   function show(icon, byClick){
     const b=bodyOf(icon); if(!b) return;
-    box.innerHTML=b.innerHTML;
+box.innerHTML = window.uout(b.innerHTML);
     box.classList.toggle('wide', b.classList.contains('wide')||icon.classList.contains('wide'));
     box.style.display='block';
     box.style.visibility='hidden';           /* 先量尺寸再定位，避免跳动 */
@@ -14583,9 +15093,9 @@ function hcRender(res){
   if(!kp) return;
 
   function msg(t){
-    kp.innerHTML='<div class="note">'+t+'</div>';
-    if(tb) tb.innerHTML='';
-    if(rp) rp.innerHTML='';
+kp.innerHTML = window.uout('<div class="note">'+t+'</div>');
+if(tb) tb.innerHTML = window.uout('');
+if(rp) rp.innerHTML = window.uout('');
   }
   if(!res){ msg('暂无携岩诊断结果：请先在 ② CTS-DEM 输入井况并点「计算」。'); return; }
   if(res.ok===false){ msg(res.reason||'携岩诊断不适用。'); return; }
@@ -14618,11 +15128,11 @@ function hcRender(res){
       (res.nInfo?' · '+res.nInfo+' 项仅供参考':''),
       lv(res.grade)]
   ];
-  kp.innerHTML=kpArr.map(function(a){
+kp.innerHTML = window.uout(kpArr.map(function(a){
     return '<div class="tkpi"><div class="l">'+a[0]+'</div>'+
            '<div class="v" style="color:'+a[3]+'">'+a[1]+'</div>'+
            '<div class="u">'+a[2]+'</div></div>';
-  }).join('');
+  }).join(''));
 
   /* ---------------- CTR / CCA 沿井深剖面 ---------------- */
   (function(){
@@ -14664,7 +15174,7 @@ function hcRender(res){
       for(var i=0;i<=5;i++){
         var d=MD*i/5, yy=Y(d);
         ctx.beginPath(); ctx.moveTo(pL,yy); ctx.lineTo(pL+pw,yy); ctx.stroke();
-        ctx.fillText(d.toFixed(0)+'m',8,yy+4);
+        ctx.fillText(window.UU('len',d).toFixed(0)+window.UL('len'),8,yy+4);
       }
       ctx.setLineDash([4,3]); ctx.lineWidth=1.5;
       ctx.strokeStyle=C_BAD; ctx.beginPath(); ctx.moveTo(Xc(50),pT); ctx.lineTo(Xc(50),pT+ph); ctx.stroke();
@@ -14712,7 +15222,7 @@ function hcRender(res){
       render({md:md,row:best});
       if(!tip) return;
       tip.style.display='block';
-      tip.innerHTML='<b>MD '+best.md.toFixed(0)+' m · 井斜 '+best.inc.toFixed(0)+'° · 分区 '+(best.zone||'—')+'</b>'+
+tip.innerHTML = window.uout('<b>MD '+best.md.toFixed(0)+' m · 井斜 '+best.inc.toFixed(0)+'° · 分区 '+(best.zone||'—')+'</b>'+
         '<div style="display:grid;grid-template-columns:auto auto;column-gap:12px;margin-top:3px">'+
         '<span>环空返速：<b>'+best.V.toFixed(2)+'</b> m/s</span>'+
         '<span>滑移速度：<b>'+best.vs.toFixed(3)+'</b> m/s</span>'+
@@ -14722,7 +15232,7 @@ function hcRender(res){
         '<span>井径/钻具：<b>'+best.Dh.toFixed(0)+' / '+best.Dp.toFixed(0)+'</b> mm</span>'+
         '<span>环空剪切率：<b>'+best.gdot.toFixed(0)+'</b> s⁻¹</span>'+
         '<span>有效粘度：<b>'+(best.muEff*1000).toFixed(1)+'</b> mPa·s</span>'+
-        '</div>';
+        '</div>');
       var tw=tip.offsetWidth||230, th=tip.offsetHeight||150;
       var left=mxC+14; if(left+tw>r.width) left=Math.max(0,mxC-tw-14);
       var top=myC-10; if(top+th>r.height) top=Math.max(0,r.height-th); if(top<0) top=0;
@@ -14755,7 +15265,7 @@ function hcRender(res){
          '<td style="font-size:11px;color:#7b8896">'+c.src+'</td></tr>';
     }
     h+='</table>';
-    tb.innerHTML=h;
+tb.innerHTML = window.uout(h);
   }
 
   /* ---------------- 结论与施工建议 ---------------- */
@@ -14789,7 +15299,7 @@ function hcRender(res){
         'C<sub>conc</sub>=1.667·ROP·D<sub>b</sub>²/[(D<sub>h</sub>²−D<sub>p</sub>²)·V<sub>rise</sub>]。'+
         '环空剪切率 γ̇=((2n+1)/3n)·12V/(D<sub>h</sub>−D<sub>p</sub>)，有效粘度 μ<sub>eff</sub>=τ<sub>0</sub>/γ̇+K·γ̇<sup>n−1</sup>，'+
         '本井环空剪切率 '+res.gdotMin.toFixed(0)+'~'+res.gdotMax.toFixed(0)+' s⁻¹（资料典型区间 50~250 s⁻¹）。</div>';
-    rp.innerHTML=o;
+rp.innerHTML = window.uout(o);
   }
 }
 
@@ -14949,7 +15459,7 @@ function hydCheck(){
     html+='<div style="margin-top:5px;padding:5px 8px;border-radius:6px;border-left:3px solid '+col+
           ';background:rgba(0,0,0,.03)">差值 '+f2(dP/1e6)+' MPa（'+(r>=0?'+':'')+pct(r)+'）　'+verdict+'</div>';
   }
-  box.innerHTML=html;
+box.innerHTML = window.uout(html);
 }
 window.hydCheck=hydCheck;
 try{ window.addEventListener('load',function(){
@@ -15139,8 +15649,7 @@ function runTrip(){
   /* ================= 渲染 KPI ================= */
   var kpi=document.getElementById('tripKpi');
   if(kpi){
-    kpi.innerHTML=
-      '<div class="tkpi"><div class="l">TVD 垂深</div><div class="v">'+TVD.toFixed(0)+'</div><div class="u">m @ MD '+MD.toFixed(0)+' m</div></div>'+
+kpi.innerHTML = window.uout('<div class="tkpi"><div class="l">TVD 垂深</div><div class="v">'+TVD.toFixed(0)+'</div><div class="u">m @ MD '+MD.toFixed(0)+' m</div></div>'+
       '<div class="tkpi"><div class="l">静态 ESD</div><div class="v">'+ESD.toFixed(3)+'</div><div class="u">g/cm³</div></div>'+
       '<div class="tkpi"><div class="l">循环 ECD（不含岩屑）</div><div class="v" style="color:#1a63c4">'+Ecirc.toFixed(3)+'</div><div class="u">g/cm³ @TD</div></div>'+
       '<div class="tkpi"><div class="l">循环 ECD（含岩屑）</div><div class="v" style="color:#1a7f37">'+Ecut.toFixed(3)+'</div><div class="u">g/cm³</div></div>'+
@@ -15148,7 +15657,7 @@ function runTrip(){
       '<div class="tkpi"><div class="l">下钻激动 / 起钻抽汲</div><div class="v" style="color:#c8332a">'+stateECD(MD)[4].toFixed(3)+'</div><div class="u">/ '+stateECD(MD)[5].toFixed(3)+' g/cm³</div></div>'+
       '<div class="tkpi"><div class="l">携岩时间 CUTtime（HB 分段积分）</div>'+
         '<div class="v" style="color:#8a5d00">'+((hcRes&&hcRes.ok)?((hcRes.partial?'≥':'')+hcRes.cutMin.toFixed(1)):mainCut.toFixed(1))+'</div>'+
-        '<div class="u">min（主引擎 '+mainEngine+' '+mainCut.toFixed(1)+' · Moore '+tCutMoore.toFixed(1)+'）</div></div>';
+        '<div class="u">min（主引擎 '+mainEngine+' '+mainCut.toFixed(1)+' · Moore '+tCutMoore.toFixed(1)+'）</div></div>');
   }
 
   /* ================= ① ECD 汇总剖面图 ================= */
@@ -15216,9 +15725,9 @@ function runTrip(){
       ctx.strokeStyle='#d8e0e9'; ctx.fillStyle='#5c6b7a';
       for(var i=0;i<=5;i++){ var d=MD*i/5, yy=Y(d);
         ctx.beginPath(); ctx.moveTo(pL,yy); ctx.lineTo(pL+pw,yy); ctx.stroke();
-        ctx.fillText(d.toFixed(0)+'m',8,yy+4); }
+        ctx.fillText(window.UU('len',d).toFixed(0)+window.UL('len'),8,yy+4); }
       for(var i=0;i<=6;i++){ var v=xmin+(xmax-xmin)*i/6;
-        ctx.fillText(v.toFixed(span<0.15?3:2),X(v)-12,H-34); }
+        ctx.fillText(window.UU('p',v).toFixed(span<0.15?3:2),X(v)-12,H-34); }
       ctx.fillText('当量密度 g/cm³',pL+pw/2-42,H-14);
       ctx.fillText('斜深 MD (m)',10,pT-8);
       /* 结构标注：套管鞋（动态取自③套管输入；套管段加底纹） */
@@ -15257,9 +15766,9 @@ function runTrip(){
       var vs=stateECD(md);
       var tip=document.getElementById('tripTip1');
       tip.style.display='block';
-      tip.innerHTML='<b>斜深 MD '+md.toFixed(0)+' m / TVD '+tvdAt(md).toFixed(0)+' m</b>（井斜 '+incAt(md).toFixed(0)+'°，单位 g/cm³）'+
+tip.innerHTML = window.uout('<b>斜深 MD '+md.toFixed(0)+' m / TVD '+tvdAt(md).toFixed(0)+' m</b>（井斜 '+incAt(md).toFixed(0)+'°，单位 g/cm³）'+
         '<div style="display:grid;grid-template-columns:auto auto;column-gap:12px;margin-top:3px">'+
-        names.map(function(n,i){ return '<span style="white-space:nowrap"><span style="color:'+cols[i]+'">■</span> '+n+'：<b>'+vs[i].toFixed(3)+'</b></span>'; }).join('')+'</div>';
+        names.map(function(n,i){ return '<span style="white-space:nowrap"><span style="color:'+cols[i]+'">■</span> '+n+'：<b>'+vs[i].toFixed(3)+'</b></span>'; }).join('')+'</div>');
       var tw=tip.offsetWidth||210, th=tip.offsetHeight||170;
       var left=mxC+14; if(left+tw>r.width) left=Math.max(0,mxC-tw-14);
       var top=myC-10; if(top+th>r.height) top=Math.max(0,r.height-th); if(top<0) top=0;
@@ -15303,7 +15812,7 @@ function runTrip(){
         '<td class="'+(sw<ESD-0.05?'warn':'ok')+'">'+sw.toFixed(3)+'</td><td>'+rih.toFixed(3)+'</td><td>'+(dPcirc/1000).toFixed(0)+'</td></tr>';
     }
     html+='</table>';
-    el.innerHTML=html;
+el.innerHTML = window.uout(html);
   }
 
   function drawTripCutEngines(){
@@ -15322,13 +15831,13 @@ function runTrip(){
         '<div class="n">'+c.n+' <span class="tag2">'+c.tag+(isMainCard(c)?' · 主引擎':'')+'</span></div>'+
         '<div class="vv">'+show+'</div></div>';
     });
-    el.innerHTML=html;
+el.innerHTML = window.uout(html);
     var nt=document.getElementById('tripCutNote');
-    if(nt) nt.innerHTML='各引擎为<b>同一井况</b>下岩屑从井底到井口的运移时间，模型口径不同：'+
+if(nt) nt.innerHTML = window.uout('各引擎为<b>同一井况</b>下岩屑从井底到井口的运移时间，模型口径不同：'+
       '<b>HB 分段积分</b>（本页 ④）= 六速拟合 Herschel-Bulkley + Walker–Mayes F<sub>p</sub>–R<sub>p</sub> 图解滑移，逐段按真实井径/井斜积分（推荐作为施工口径）；'+
       'CFD-DEM 用运移比 TR；DFEM 用 Walker–Mayes 滑移；N-S 用动量方程数值解；Moore 用自由沉降滑移。'+
       '主引擎 <b>'+mainEngine+'</b> = '+mainCut.toFixed(1)+' min。'+
-      (tCutMooreMin!=null?'<b>Moore 最差运移比 Rt='+tCutMooreMin.toFixed(2)+(tCutMooreMin<0.5?'（<span class="warn">岩屑床风险</span>）':'（清洁良好）')+'.</b>':'');
+      (tCutMooreMin!=null?'<b>Moore 最差运移比 Rt='+tCutMooreMin.toFixed(2)+(tCutMooreMin<0.5?'（<span class="warn">岩屑床风险</span>）':'（清洁良好）')+'.</b>':''));
   }
 
   function drawTripSens(){
@@ -15366,7 +15875,7 @@ function runTrip(){
     ctx.strokeStyle='#d8e0e9'; ctx.fillStyle='#5c6b7a';
     for(var i=0;i<=4;i++){ var v=ymin+(ymax-ymin)*i/4, yy=Y(v);
       ctx.beginPath(); ctx.moveTo(pL,yy); ctx.lineTo(pL+pw,yy); ctx.stroke();
-      ctx.fillText(v.toFixed(2),8,yy+4); }
+      ctx.fillText(window.UU('rho',v).toFixed(2),8,yy+4); }
     for(var q=15;q<=50;q+=5) ctx.fillText(q,X(q)-4,H-34);
     ctx.fillText('排量 L/s',pL+pw/2-20,H-14);
     [[e1,'#1a63c4'],[e2,'#1a7f37']].forEach(function(ar){
@@ -15389,9 +15898,9 @@ function runTrip(){
       if(my<pT||my>pT+ph||mx<pL||mx>pL+pw){ tip.style.display='none'; return; }
       var q=15+(mx-pL)/pw*35, i=Math.max(0,Math.min(35,Math.round(q-15)));
       tip.style.display='block';
-      tip.innerHTML='<b>排量 '+q.toFixed(0)+' L/s</b><br>'+
+tip.innerHTML = window.uout('<b>排量 '+q.toFixed(0)+' L/s</b><br>'+
         '<span style="color:#1a63c4">■</span> 不含岩屑井底 ECD：<b>'+e1[i].toFixed(3)+'</b> g/cm³<br>'+
-        '<span style="color:#1a7f37">■</span> 含岩屑井底 ECD：<b>'+e2[i].toFixed(3)+'</b> g/cm³';
+        '<span style="color:#1a7f37">■</span> 含岩屑井底 ECD：<b>'+e2[i].toFixed(3)+'</b> g/cm³');
       var tw=tip.offsetWidth||170, th=tip.offsetHeight||90;
       var left=mxC+14; if(left+tw>r.width) left=Math.max(0,mxC-tw-14);
       var top=myC-10; if(top+th>r.height) top=Math.max(0,r.height-th); if(top<0) top=0;
@@ -15443,7 +15952,7 @@ function runTrip(){
     }
     if(tCutMooreMin!=null && tCutMooreMin<0.5) lines.push('<span class="warn">岩屑运移比偏低，井眼清洁风险：建议提高排量、提高低剪切粘度、降低 ROP，或增大循环时间后再起钻。</span>');
     lines.push('<b>【综合结论】</b>ECD 施工窗口 = 抽汲下界 <b>'+worstSwab.toFixed(3)+'</b> ~ 激动上界 <b>'+surge.toFixed(3)+'</b> g/cm³，须同时满足：上界 &lt; 破裂压力当量、下界 &gt; 孔隙/坍塌压力当量。');
-    el.innerHTML=lines.map(function(l){ return '<div style="margin:6px 0">'+l+'</div>'; }).join('');
+el.innerHTML = window.uout(lines.map(function(l){ return '<div style="margin:6px 0">'+l+'</div>'; }).join(''));
   }
 }
 window.runTrip = runTrip;
@@ -15839,9 +16348,9 @@ if(restored){
   var tip=document.getElementById('restoreTip');
   if(tip){
     tip.style.display='block';
-    tip.innerHTML='✅ 已自动恢复上次保存的输入（'+
+tip.innerHTML = window.uout('✅ 已自动恢复上次保存的输入（'+
       new Date(restored).toLocaleString('zh-CN')+'），并已按此重算。'+
-      ' <span style="color:#6b7784">要回到示例值请点下方「载入示例井」。</span>';
+      ' <span style="color:#6b7784">要回到示例值请点下方「载入示例井」。</span>');
     setTimeout(function(){ tip.style.display='none'; }, 12000);
   }
 }
@@ -15922,13 +16431,13 @@ function renderSnap(){
   if(n) n.textContent=String(a.length);
   if(!box) return;
   if(!a.length){
-    box.innerHTML='<div style="padding:14px 6px;color:#6b7784;font-size:12.5px;line-height:1.9">'+
+box.innerHTML = window.uout('<div style="padding:14px 6px;color:#6b7784;font-size:12.5px;line-height:1.9">'+
       '还没有保存过结果。算完后点工具栏「💾 保存本次结果」，即可把<b>这一版全部参数与关键指标</b>存下来，'+
-      '下次打开可一键恢复重算。<br><span style="color:#9aa5b1">（参数本身已自动保存，只有需要留多个版本对比时才用快照）</span></div>';
+      '下次打开可一键恢复重算。<br><span style="color:#9aa5b1">（参数本身已自动保存，只有需要留多个版本对比时才用快照）</span></div>');
   }else{
     var h='';
     for(var i=0;i<a.length;i++) h+=rowOf(a[i],i);
-    box.innerHTML=h;
+box.innerHTML = window.uout(h);
   }
 }
 window.snapToggle=function(){
@@ -16136,7 +16645,16 @@ renderSnap();
 
   /* ---- UI -------------------------------------------------------------------- */
   function gv(id){ var e = document.getElementById(id); return e ? e.value : ''; }
-  function gval(id){ return num(gv(id)); }
+  function gval(id){ var e=document.getElementById(id); if(!e) return null;
+    var raw=e.value; if(raw===''||raw===null||raw===undefined) return null;
+    var x=parseFloat(raw); if(!isFinite(x)) return null;
+    var UK=(typeof window!=='undefined'&&window.UNITKIND)||{};
+    var k=UK[id]||'none';
+    if(k==='none') return x;
+    var U=(typeof window!=='undefined'&&window.ECDUnits);
+    if(!U) return x;
+    var b=U.toBase(k,x);
+    return (b===null||typeof b!=='number'||!isFinite(b))?null:b; }
 
   function defaults(){
     var R = window.__ctsResult || {};
@@ -16174,7 +16692,7 @@ renderSnap();
     var box = document.getElementById('pvOut');
     if(!box) return;
     if(!res || res.err){
-      box.innerHTML = '<b style="color:#c0392b">⛔ ' + (res ? res.err : '计算失败') + '</b>';
+box.innerHTML = window.uout('<b style="color:#c0392b">⛔ ' + (res ? res.err : '计算失败') + '</b>');
       return;
     }
     var a4 = res.alpha*1e4, b4 = res.beta*1e4;
@@ -16246,7 +16764,7 @@ renderSnap();
          +  '<br>系数：API RP 13D Table 5（柴油 / 矿物油 / 内烯烃 / 正构烷烃 / CaCl₂ 19.3 %），'
          +  '纯水 Kell(1975)，盐水按盐种密度表折算等效盐重。'
          +  '</div>';
-    box.innerHTML = html;
+box.innerHTML = window.uout(html);
   }
 
   function applyToE1(res){
@@ -16294,7 +16812,7 @@ renderSnap();
     var s = document.getElementById('i_pvSalt'); if(s) s.value = 'cacl2';
     try{ syncCl(); }catch(_){}
     var box = document.getElementById('pvOut');
-    if(box) box.innerHTML = '—（已清空。E1 的 α / β 保持当前值不变）';
+if(box) box.innerHTML = window.uout('—（已清空。E1 的 α / β 保持当前值不变）');
     window.__ctsPVTResult = null;
   });
 
@@ -16359,20 +16877,20 @@ renderSnap();
     if(!(CLF[type] > 0)){
       iCl.value = '';
       iCl.placeholder = '该盐型无 Cl 口径';
-      if(iClD) iClD.innerHTML = '淡水/海水请直接填盐度（海水 ≈ 3.5 wt% ⇔ Cl⁻ ≈ 19 000 mg/L）';
+if(iClD) iClD.innerHTML = window.uout('淡水/海水请直接填盐度（海水 ≈ 3.5 wt% ⇔ Cl⁻ ≈ 19 000 mg/L）');
       return;
     }
     if(S === null || !(S > 0)){
       iCl.value = '';
       iCl.placeholder = '留空 = 由盐度换算';
-      if(iClD) iClD.innerHTML = '水相(滤液)口径；两栏联动，改哪一栏都会自动换算另一栏';
+if(iClD) iClD.innerHTML = window.uout('水相(滤液)口径；两栏联动，改哪一栏都会自动换算另一栏');
       return;
     }
     var C = salToCl(S, type), rb = brineRho(type, S);
     iCl.value = Math.round(C);
-    if(iClD) iClD.innerHTML = '等效 Cl⁻ <b>' + Math.round(C).toLocaleString('en-US') + '</b> mg/L'
+if(iClD) iClD.innerHTML = window.uout('等效 Cl⁻ <b>' + Math.round(C).toLocaleString('en-US') + '</b> mg/L'
       + '（ρ<sub>盐水</sub> ' + rb.toFixed(4) + ' g/cm³ @ T₀）'
-      + (S > SATMAX[type] ? '<br><b style="color:#c0392b">超过饱和盐度 ' + SATMAX[type] + ' wt%</b>' : '');
+      + (S > SATMAX[type] ? '<br><b style="color:#c0392b">超过饱和盐度 ' + SATMAX[type] + ' wt%</b>' : ''));
   }
   /* 以 Cl 为源 → 反算盐度写回 wt% 栏 */
   function syncSal(){
@@ -16382,14 +16900,14 @@ renderSnap();
     if(C === null || !(C > 0)){ syncCl(); return; }
     var S = clToSal(C, type);
     if(S === null){
-      if(iClD) iClD.innerHTML = '<b style="color:#c0392b">当前盐型（' + (SALTNM[type] || type) + '）不含 Cl，请改用 CaCl2 / NaCl / KCl</b>';
+if(iClD) iClD.innerHTML = window.uout('<b style="color:#c0392b">当前盐型（' + (SALTNM[type] || type) + '）不含 Cl，请改用 CaCl2 / NaCl / KCl</b>');
       return;
     }
     iSal.value = S.toFixed(S < 1 ? 3 : 2);
     var rb = brineRho(type, S);
-    if(iClD) iClD.innerHTML = '<b>' + Math.round(C).toLocaleString('en-US') + '</b> mg/L = <b>'
+if(iClD) iClD.innerHTML = window.uout('<b>' + Math.round(C).toLocaleString('en-US') + '</b> mg/L = <b>'
       + S.toFixed(2) + ' wt% ' + (SALTNM[type] || type) + '</b>（ρ<sub>盐水</sub> ' + rb.toFixed(4) + ' g/cm³ @ T₀）'
-      + (Math.abs(S - SATMAX[type]) < 0.05 ? '<br><b style="color:#c0392b">已到饱和盐度上限</b>' : '');
+      + (Math.abs(S - SATMAX[type]) < 0.05 ? '<br><b style="color:#c0392b">已到饱和盐度上限</b>' : ''));
     autoRun();
   }
 
@@ -16448,6 +16966,97 @@ renderSnap();
   function rd(v, d){ return (typeof v === 'number' && isFinite(v)) ? v.toFixed(d) : '–'; }
   function col(c){ return 'color:' + c; }
 
+  var UT = window.ECDUnits;
+  /* ★ 单位感知读数：显示值 → SI 基准（与①页 gvu 同口径；量纲表 = window.UNITKIND）。
+     ④ 面板的录入文本与基准框按「当前单位制」显示，反求内核一律吃 SI 基准值。 */
+  function ub(kind, v) {
+    if (!UT || typeof v !== 'number' || !isFinite(v)) return v;
+    var b = UT.toBase(kind, v);
+    return (b === null || typeof b !== 'number' || !isFinite(b)) ? v : b;
+  }
+  /* #calibData 列角色：md, ecd, cut, spp, q, rop, rho, dc [, buTime]
+     ecd/rho 是 SG（英制 ppg）→ 按 rho 量纲换算；cut/buTime 是 min，两制相同。 */
+  var CALIB_KINDS = window.CALIB_KINDS || ['len', 'rho', 'none', 'p', 'flow', 'rop', 'rho', 'dia', 'none'];
+  /* calibData 文本取整策略（单位制切换必须可逐位往返）：
+     · 基准（SI）侧 r6：6 位小数 —— 与现场数据精度量级一致，且足以吸收显示侧 rounding 误差
+       （最大换算因子 145.04：显示误差 0.5e-9 × 145 ≪ 0.5e-6）；
+     · 显示侧 r9：9 位小数 —— 小数值列（如岩屑粒径 0.118 in）也有 9 位有效数字，
+       避免「6 位小数只剩 5 位有效数字」把 3.0 mm 往返成 2.999994。
+     （若用 toDispClean 的 10 位有效数字：4530 m → 14862.20472 ft，换回公制变 4529.999999。） */
+  function r6(v) { return Math.round(v * 1e6) / 1e6; }
+  function r9(v) { return Math.round(v * 1e9) / 1e9; }
+  /* SI 基准文本 → 当前单位制文本（逐列换算，供示例数据/恢复默认写入用） */
+  function dispCalibText(siText) {
+    return String(siText || '').split('\n').map(function (l) {
+      if (!l.trim()) return l;
+      return l.split(',').map(function (v, i) {
+        var k = CALIB_KINDS[i];
+        var x = parseFloat(v);
+        if (!k || k === 'none' || !isFinite(x) || !UT) return v;
+        return String(r9(UT.toDisp(k, x)));
+      }).join(',');
+    }).join('\n');
+  }
+  /* #calibData 专用快照 / 写回（单位制切换时由 snapTextareas/restoreTextareas 调用）：
+     ★ 必须按【列号】换算 —— 本面板的列允许留空（"留空列沿用①页当前值"），
+       按「数字出现序号」数会把空列之后的列角色整体错位一位。 */
+  window.__calibSnapText = function (fromSys) {
+    var el = document.getElementById('calibData'); if (!el) return null;
+    var lines = String(el.value).split(/\r?\n/), toks = [];
+    lines.forEach(function (ln, li) {
+      var cols = ln.split(',');
+      for (var ci = 0; ci < cols.length && ci < CALIB_KINDS.length; ci++) {
+        var k = CALIB_KINDS[ci];
+        var t = cols[ci].trim();
+        if (!k || k === 'none' || t === '') continue;      /* 留空列：不换算、不错位 */
+        var v = parseFloat(t);
+        if (!isFinite(v)) continue;
+        var b = UT.toBase(k, v, fromSys);                  /* fromSys 显示值 → SI */
+        if (b !== null && typeof b === 'number' && isFinite(b)) toks.push({ ln: li, ci: ci, k: k, si: r6(b) });
+      }
+    });
+    return toks.length ? { el: el, lines: lines, toks: toks } : null;
+  };
+  window.__calibRestoreText = function (rec) {
+    if (!rec || !rec.el) return;
+    var byLn = {};
+    rec.toks.forEach(function (t) { (byLn[t.ln] = byLn[t.ln] || {})[t.ci] = t; });
+    rec.el.value = rec.lines.map(function (ln, li) {
+      var m = byLn[li]; if (!m) return ln;
+      var cols = ln.split(',');
+      Object.keys(m).forEach(function (ci) {
+        cols[+ci] = String(r9(UT.toDisp(m[ci].k, m[ci].si)));   /* SI → 新制显示值（9 位小数，可往返） */
+      });
+      return cols.join(',');
+    }).join('\n');
+  };
+  /* 录入格式提示随单位制刷新（textarea 上方 label / 下方说明 / 悬浮提示三处），
+     由 updateUnitHint() 在启动与每次切换时调用 —— 杜绝「说明还是公制、录入要英制」。 */
+  window.__paintCalibFmt = function () {
+    function lb(k) { return UT ? UT.ulb(k) : ''; }
+    var lab = document.getElementById('calibFmtLabel');
+    if (lab) lab.innerHTML = '实测点（每行一条：md ' + lb('len') + ', ecd ' + lb('rho')
+      + ', cutMin, 立压 ' + lb('p') + ', q ' + lb('flow') + ', rop ' + lb('rop')
+      + ', rho ' + lb('rho') + ', dc ' + lb('dia') + ' [, buTimeMin]）';
+    var hint = document.getElementById('calibFmtHint');
+    if (hint) hint.innerHTML = '8 列固定：<b>md, ECD(' + lb('rho') + ',含屑), CUT time(min,岩屑返出), 立压(' + lb('p')
+      + '), 排量(' + lb('flow') + '), ROP(' + lb('rop') + '), 密度(' + lb('rho') + '), 岩屑粒径(' + lb('dia') + ')</b>； '
+      + '留空的列保留逗号（如 <code>' + dispCalibText('4700,1.87,,,30.27,4.83,1.76,3.0') + '</code>）即沿用①页当前值。 '
+      + '第 9 列（可选）填日报 <b>BU Time（泥浆迟到 min）</b>做 lag 校验，不参与反求。 '
+      + 'ROP 填 <b>0</b> = 循环/通井无岩屑工况。<b>BU Time 不是 CUT time</b>，勿填入第 3 列。';
+    var tip = document.getElementById('calibFmtTip');
+    if (tip) tip.innerHTML = '井深MD(' + lb('len') + '), 实测ECD(' + lb('rho') + '), 实测CUT_time(min), 实测立压(' + lb('p')
+      + '), 排量(' + lb('flow') + '), ROP(' + lb('rop') + '), 泥浆密度(' + lb('rho') + '), 岩屑粒径(' + lb('dia') + ')';
+    /* 分桶档位：档位值本身是 SI 基准（内部分桶按 SI），只把文字换算成当前单位制 */
+    var sel = document.getElementById('calibBuckets');
+    if (sel) {
+      Array.prototype.forEach.call(sel.options, function (op) {
+        var v = parseFloat(op.value);
+        if (isFinite(v) && v > 0) op.textContent = '每 ' + UT.dv('len', v, 0) + ' ' + UT.ulb('len') + ' 一桶';
+      });
+    }
+  };
+
   /* ---- 基准参数 ----
    *   ★ 2026-10-24 口径修正（用户质询"④反求 kFric≈0.05 与 E5 校准 2.176 差 40 倍"）：
    *     原实现用 ECDKit.defaultP()（通用示例井：Ø215.9/5″DP/inc 0）+ calibInc 单值井斜，
@@ -16474,13 +17083,13 @@ renderSnap();
       p.inc0 = inc;
       p.inc1 = inc;
     }
-    // 基准泥浆密度（若填了覆盖）
+    // 基准泥浆密度（若填了覆盖）—— 单位感知：显示值（SG / ppg）→ SI 基准（g/cm³）
     var rhoEl = document.getElementById('calibRho');
-    var rho = rhoEl ? (parseFloat(rhoEl.value) || 0) : 0;
+    var rho = rhoEl ? ub('rho', parseFloat(rhoEl.value) || 0) : 0;
     if (rho > 0) p.rho = rho;
-    // 基准排量（若填了覆盖）
+    // 基准排量（若填了覆盖）—— 单位感知：显示值（L/s / gpm）→ SI 基准（L/s）
     var qEl = document.getElementById('calibQ');
-    var q = qEl ? (parseFloat(qEl.value) || 0) : 0;
+    var q = qEl ? ub('flow', parseFloat(qEl.value) || 0) : 0;
     if (q > 0) p.q = q;
     return p;
   }
@@ -16540,15 +17149,18 @@ renderSnap();
           + ' min 过小（现场 30~300 min）—— 疑似多打一个逗号把岩屑粒径读成了 BU Time，该列已忽略';
         lagV = 0;
       }
+      /* ★ 单位感知：录入文本按「当前单位制」显示，逐列换算为 SI 基准后再进反求内核。
+         ecd/rho 列是 SG（英制录入 ppg）→ 按 rho 量纲换算成 g/cm³；
+         cut（CUT time）与第 9 列 lag（BU Time）是 min，两种单位制相同，不换算。 */
       pts.push({
-        md: md,
-        ecd: parseFloat(c[1]) || 0,        // 实测 ECD (SG, with cuttings)
-        cut: parseFloat(c[2]) || 0,        // 实测 CUT time (min) —— 岩屑返出时间，≠ 泥浆迟到时间
-        spp: parseFloat(c[3]) || 0,        // 实测立压 (MPa)
-        q:   parseFloat(c[4]) || 0,        // 排量 (L/s)
-        rop: parseFloat(c[5]) || 0,        // ROP (m/h)；0 = 无岩屑工况（循环/通井）
-        rho: parseFloat(c[6]) || 0,        // 泥浆密度 (SG)
-        dc:  parseFloat(c[7]) || 0,        // 岩屑粒径 (mm)
+        md: ub('len', md),
+        ecd: ub('rho', parseFloat(c[1]) || 0),   // 实测 ECD (SG, with cuttings)
+        cut: parseFloat(c[2]) || 0,              // 实测 CUT time (min) —— 岩屑返出时间，≠ 泥浆迟到时间
+        spp: ub('p', parseFloat(c[3]) || 0),     // 实测立压 (MPa / psi)
+        q:   ub('flow', parseFloat(c[4]) || 0),  // 排量 (L/s / gpm)
+        rop: ub('rop', parseFloat(c[5]) || 0),   // ROP (m/h / ft/h)；0 = 无岩屑工况（循环/通井）
+        rho: ub('rho', parseFloat(c[6]) || 0),   // 泥浆密度 (SG / ppg)
+        dc:  ub('dia', parseFloat(c[7]) || 0),   // 岩屑粒径 (mm / in)
         lag: lagV,                         // 第 9 列（可选）：日报 BU Time（泥浆迟到 min）——仅校验，不反求
         raw: c,                            // 原始列串（区分「显式填 0」与「留空沿用①页」）
         colWarn: colWarn
@@ -16677,7 +17289,7 @@ renderSnap();
                   rho: parseFloat(c[6]) });
     }
     var rhoEl = document.getElementById('calibRho');
-    var rhoDef = rhoEl ? (parseFloat(rhoEl.value) || 0) : 0;
+    var rhoDef = rhoEl ? ub('rho', parseFloat(rhoEl.value) || 0) : 0;   /* 显示值 → SI 基准，与 pt.rho 同口径 */
     return pts.map(function (pt) {
       for (var j = 0; j < defs.length; j++) {
         var d = defs[j];
@@ -16704,7 +17316,7 @@ renderSnap();
 
     if (pts.length < 2) {
       outCard.style.display = 'block';
-      report.innerHTML = '<span style="color:#c8332a">至少需要 2 个有效实测点才能做分段标定。当前解析到 ' + pts.length + ' 个点。</span>';
+report.innerHTML = window.uout('<span style="color:#c8332a">至少需要 2 个有效实测点才能做分段标定。当前解析到 ' + pts.length + ' 个点。</span>');
       return;
     }
 
@@ -16820,8 +17432,8 @@ renderSnap();
     for (var hl = 0; hl < rows.length; hl++) if (rows[hl].bu > 0) { hasLag = true; break; }
     var html = '<table style="border-collapse:collapse;width:100%;font-size:12px">';
     html += '<tr style="background:var(--bg2);color:var(--tx2)">';
-    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">井深 MD (m)</th>';
-    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">实测 ECD (SG)</th>';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">井深 MD (' + window.UL('len') + ')</th>';
+    html += '<th style="padding:6px;border-bottom:1px solid var(--line)">实测 ECD (' + window.UL('rho') + ')</th>';
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">实测 CUT (min)</th>';
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">反求 kFric</th>';
     html += '<th style="padding:6px;border-bottom:1px solid var(--line)">反求 kSlip</th>';
@@ -16833,8 +17445,9 @@ renderSnap();
         + (rw.colWarn ? '<span style="color:var(--bad)">' + esc(rw.colWarn) + '</span>　' : '')
         + ((rw.kfWhy || rw.ksWhy) ? esc(rw.kfWhy || rw.ksWhy) : '<span style="color:var(--ok)">✓</span>');
       html += '<tr>';
-      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + rw.md + '</td>';
-      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.ecd > 0 ? rw.ecd.toFixed(3) : '–') + '</td>';
+      /* ★ 单位感知渲染：内部一律 SI 基准，出口按当前单位制换算（图表轴与单元格同一口径） */
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.md > 0 ? UT.dv('len', rw.md, 0) : '–') + '</td>';
+      html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.ecd > 0 ? UT.dv('rho', rw.ecd, 3) : '–') + '</td>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.cut > 0 ? rw.cut.toFixed(1) : '–') + '</td>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.kf !== null ? rd(rw.kf, 3) : '–') + '</td>';
       html += '<td style="padding:5px;border-bottom:1px solid var(--line)">' + (rw.ks !== null ? rd(rw.ks, 3) : '–') + '</td>';
@@ -16911,12 +17524,12 @@ renderSnap();
     var diagHtml = '';
     diagHtml += driftDiag('kFric（摩阻系数）', bucketMid, bucketKf, '井径/几何/流变');
     diagHtml += driftDiag('kSlip（滑落系数）', bucketMid, bucketKs, '岩屑粒径/床层/ROP');
-    diag.innerHTML = diagHtml;
+diag.innerHTML = window.uout(diagHtml);
 
     // 绘图
     drawChart(bucketMid, bucketKf, bucketKs);
 
-    report.innerHTML = demoWarn + html;
+report.innerHTML = window.uout(demoWarn + html);
     outCard.style.display = 'block';
   }
 
@@ -16985,7 +17598,7 @@ renderSnap();
       var mm = mdMin + (mdMax - mdMin) * g2 / 4;
       var xx = X(mm);
       ctx.beginPath(); ctx.moveTo(xx, padT); ctx.lineTo(xx, padT + plotH); ctx.stroke();
-      ctx.fillText(Math.round(mm), xx, padT + plotH + 6);
+      ctx.fillText(Math.round(window.UU('len',mm)), xx, padT + plotH + 6);
     }
 
     // 折线：kFric 红 / kSlip 蓝
@@ -17034,21 +17647,22 @@ renderSnap();
   var lastCalib = null;   // 最近一次分段标定结果（供 __calibApply 写回 E5）
 
   function applyCalibDefaults() {
-    document.getElementById('calibData').value = CALIB_DEF.data;
+    document.getElementById('calibData').value = dispCalibText(CALIB_DEF.data);  /* SI 基准 → 当前单位制 */
     document.getElementById('calibInc').value = CALIB_DEF.inc;
-    document.getElementById('calibRho').value = CALIB_DEF.rho;
-    document.getElementById('calibQ').value = CALIB_DEF.q;
+    document.getElementById('calibRho').value = UT.toDispClean('rho', CALIB_DEF.rho);
+    document.getElementById('calibQ').value = UT.toDispClean('flow', CALIB_DEF.q);
     document.getElementById('calibBuckets').value = CALIB_DEF.bucket;
     document.getElementById('calibOutCard').style.display = 'none';
   }
 
   /* 按当前井折算示例点：MD/ECD/迟到时间/立压按井深比例缩放，排量与密度取当前井值。
-   * （ECD 平移量 = 当前密度 − 示例基准 1.65，保持「ECD − 密度 = 摩阻当量」的相对关系。） */
+     （ECD 平移量 = 当前密度 − 示例基准 1.65，保持「ECD − 密度 = 摩阻当量」的相对关系。）
+     ★ 入参 md/rho/q 一律 SI 基准；内部按 SI 计算，出口用 dispCalibText 换算成当前单位制。 */
   function wellScaledExample(md, rho, q) {
     var defMax = 5000;
     var ratio = (md > 0 ? md / defMax : 1);
     if (Math.abs(ratio - 1) < 0.2) ratio = 1;      // 井深接近示例范围就不动
-    return CALIB_DEF.data.split('\n').map(function (l) {
+    return dispCalibText(CALIB_DEF.data.split('\n').map(function (l) {
       var c = l.split(',');
       c[0] = String(Math.round(parseFloat(c[0]) * ratio / 10) * 10);
       c[1] = (parseFloat(c[1]) - 1.65 + rho).toFixed(2);
@@ -17057,33 +17671,32 @@ renderSnap();
       c[4] = String(q);
       c[6] = rho.toFixed(2);
       return c.join(',');
-    }).join('\n');
+    }).join('\n'));
   }
 
   /* ① 页换井预设同步（loadExample / loadOBM / loadAY22 调用）：
-   *   井深/密度/排量按「①页参数包（RUNX，与反求同源）→ ②页输入框」顺序取。
+   *   井深/密度/排量按「①页输入框 → ②页输入框」顺序取，与用户当前看到的表单一致。
    *   ★ 只在用户没动过本面板时更新 —— 绝不覆盖现场粘贴的真实实测数据。 */
   window.__calibSyncWell = function (md, rho, q) {
     if (panelTouched) return { skipped: true };
-    var L = (window.RUNX && window.RUNX.getLast) ? window.RUNX.getLast() : null;
-    var pp = (L && L.ok && L.p) ? L.p : null;
-    function pick(a, ids) {
+    /* 读数一律单位感知换算为 SI 基准（英制下输入框里是 ft / ppg / gpm，不能直接当 SI 用） */
+    function pick(a, ids, kind) {
       if (a != null && isFinite(a) && a > 0) return a;
       for (var i = 0; i < ids.length; i++) {
         var e = document.getElementById(ids[i]);
-        if (e) { var v = parseFloat(e.value); if (isFinite(v) && v > 0) return v; }
+        if (e) { var v = parseFloat(e.value); if (isFinite(v) && v > 0) return ub(kind, v); }
       }
       return 0;
     }
-    md = pick(md, ['i_md', 'MD']);
-    rho = pick(rho, ['i_rho', 'rho']);
-    q = pick(q, ['i_q', 'Q']);
+    md = pick(md, ['i_md', 'MD'], 'len');
+    rho = pick(rho, ['i_rho', 'rho'], 'rho');
+    q = pick(q, ['i_q', 'Q'], 'flow');
     if (!(rho > 0)) rho = CALIB_DEF.rho;
     if (!(q > 0)) q = CALIB_DEF.q;
     if (!(md > 0)) md = 5000;
     document.getElementById('calibData').value = wellScaledExample(md, rho, q);
-    document.getElementById('calibRho').value = rho;
-    document.getElementById('calibQ').value = q;
+    document.getElementById('calibRho').value = UT.toDispClean('rho', rho);
+    document.getElementById('calibQ').value = UT.toDispClean('flow', q);
     document.getElementById('calibOutCard').style.display = 'none';
     return { skipped: false, md: md, rho: rho, q: q };
   };
@@ -17110,6 +17723,8 @@ renderSnap();
 
   window.__calibRun = runSegmentCalib;
   window.__calibClear = clearCalib;
+  /* 只读调试钩子：取最近一次分段标定的原始结果（SI 基准系数），供探针/现场核对 */
+  window.__calibLast = function () { return lastCalib; };
   window.__calibReady = function () {
     // 切换到该 Tab 时，若输出卡已显示则重绘（处理窗口 resize）
     var oc = document.getElementById('calibOutCard');
