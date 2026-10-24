@@ -106,6 +106,44 @@ html,body{max-width:100%;}
 @media(max-width:800px){#pane-trip .tkpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <style>
+/* ===== ⑤ 井眼轨迹图（作用域 #pane-traj，浅色护眼主题 · 复用②/①轨迹输入） ===== */
+#pane-traj .twrap{max-width:1180px;margin:0 auto;padding:14px 14px 80px}
+#pane-traj .tbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 14px;
+  font-size:12px;color:var(--dim);margin-bottom:13px}
+#pane-traj .tbar b{color:var(--accent)}
+#pane-traj .tbar .hint{margin-left:auto;font-size:11.5px;color:var(--dim)}
+#pane-traj .tkpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:13px}
+#pane-traj .tkpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+#pane-traj .tkpi .l{font-size:12px;color:var(--dim);margin-bottom:5px}
+#pane-traj .tkpi .v{font:600 22px/1.15 "Consolas",monospace;letter-spacing:-.5px}
+#pane-traj .tkpi .u{font-size:11px;color:var(--dim);margin-top:4px}
+#pane-traj .tcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:13px 15px;margin-bottom:13px}
+#pane-traj .tcard h2{font-size:15px;margin:0 0 10px;border-left:3px solid var(--accent);padding-left:8px;color:var(--txt)}
+#pane-traj .tcard h2 .sub{font-size:12px;font-weight:400;color:var(--dim)}
+#pane-traj .tcard .note{font-size:12px;color:var(--dim);line-height:1.7;margin-top:8px}
+#pane-traj .tcard .note b{color:var(--txt)}
+#pane-traj canvas{width:100%;background:#fff;border:1px solid var(--line);border-radius:8px;display:block}
+#pane-traj #trajCvVS,#pane-traj #trajCvTop{cursor:crosshair}
+#pane-traj .tip{position:absolute;display:none;pointer-events:none;background:#ffffff;border:1px solid var(--accent);
+  border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.7;z-index:10;min-width:230px;
+  box-shadow:0 4px 16px rgba(20,40,70,.18);color:var(--txt)}
+#pane-traj .legend{font-size:12px;color:var(--dim);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap}
+#pane-traj .legend span::before{content:"■ ";color:var(--c)}
+#pane-traj table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
+#pane-traj th,#pane-traj td{border:1px solid var(--line);padding:5px 7px;text-align:right}
+#pane-traj th{background:var(--soft);color:var(--accent);font-weight:600}
+#pane-traj td:first-child,#pane-traj th:first-child{text-align:left}
+#pane-traj .warn{color:var(--accent);font-weight:bold}
+#pane-traj .rel{position:relative}
+#pane-traj .tblscroll{max-height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+#pane-traj .tblscroll table{margin-top:0}
+#pane-traj .tblscroll th{position:sticky;top:0}
+#pane-traj .empty{padding:38px 16px;text-align:center;color:var(--dim);font-size:13px;line-height:2}
+#pane-traj .empty b{color:var(--accent)}
+@media(max-width:800px){#pane-traj .tkpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<style>
 /* ===== ① ECD/CUTtime DFG 口径（作用域 #pane-ecd） ===== */
 
 
@@ -1232,6 +1270,7 @@ html,body{max-width:100%;}
     <button id="tab-ecd" onclick="switchTab('ecd')">① ECD / CUTtime 计算</button>
     <button id="tab-trip" onclick="switchTab('trip')">③ 多状态 ECD / 起下钻 / 清洁</button>
     <button id="tab-calib" onclick="switchTab('calib')">④ 实测标定 · 随钻纠偏</button>
+    <button id="tab-traj" onclick="switchTab('traj')">⑤ 井眼轨迹图</button>
   </div>
 </div>
 
@@ -2502,6 +2541,62 @@ html,body{max-width:100%;}
       <div class="note" id="calibDiag" style="margin-top:8px"></div>
     </div>
   </div>
+</section>
+
+<section class="pane" id="pane-traj">
+<div class="twrap">
+
+  <div class="tbar">
+    <b>⑤ 井眼轨迹图</b>
+    <span>数据源：<b id="trajSrc">—</b></span>
+    <span style="font-size:11.5px;color:var(--dim)">（自动读取 ② CTS-DEM「井眼轨迹」三列表；② 为空时回落 ① 页井斜表；改完输入点「刷新」或切换页签即重绘）</span>
+    <span class="hint" id="trajStamp"></span>
+  </div>
+
+  <div class="tkpis" id="trajKpi"></div>
+
+  <div class="tcard">
+    <h2>垂直剖面图 <span class="sub">（Vertical Section：横轴 = 垂直剖面长度 VS ｜ 纵轴 = 垂深 TVD，向下增大）</span></h2>
+    <div class="rel">
+      <canvas id="trajCvVS" height="520"></canvas>
+      <div class="tip" id="trajTipVS"></div>
+    </div>
+    <div class="legend">
+      <span style="--c:#1a63c4">井眼轨迹（最小曲率法）</span>
+      <span style="--c:#c8332a">▼ 井底 TD</span>
+      <span style="--c:#1a7f37">● 井口（ surface ）</span>
+      <span style="--c:#8fa3b8">· 测点（标注 MD）</span>
+    </div>
+    <div class="note">💡 取数：电脑<b>鼠标悬停</b>、手机<b>手指按住图内拖动</b>，读取任意井深的 MD / TVD / VS / 井斜 / 方位 / 狗腿度。<b>垂直剖面 VS</b> = 把每一测点的水平位移（N/E）投影到「井口→井底总位移方向」上得到的二维剖面，是定向井设计最常用的投影方式；总位移方向即图中虚线指北标。<b>造斜点 KOP / 最大井斜点</b>已在图上标出。</div>
+  </div>
+
+  <div class="tcard">
+    <h2>顶视图 <span class="sub">（Plan View：横轴 = 东 E ｜ 纵轴 = 北 N，井口在原点，等比例）</span></h2>
+    <div class="rel">
+      <canvas id="trajCvTop" height="520"></canvas>
+      <div class="tip" id="trajTipTop"></div>
+    </div>
+    <div class="legend">
+      <span style="--c:#1a63c4">井眼轨迹</span>
+      <span style="--c:#c8332a">▼ 井底 TD</span>
+      <span style="--c:#1a7f37">● 井口</span>
+      <span style="--c:#8fa3b8">· 测点（标注 MD）</span>
+    </div>
+    <div class="note">💡 顶视图按<b>真实方位</b>展开（N 上 E 右），等比例显示，可直接看丛式井组相对关系与绕障方向。<b>① 页井斜表无方位列</b>时按方位 0°（正北）投影，顶视图退化为一条直线——仅作示意，精确顶视图请用 ② 页三列轨迹。<span id="trajAziNote"></span></div>
+  </div>
+
+  <div class="tcard">
+    <h2>测点明细 <span class="sub" id="trajTblSub"></span></h2>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+      <button class="reset" onclick="window.__trajRender()" title="按当前输入重算并重绘（改了②页轨迹后点此）">↻ 刷新</button>
+      <input type="file" id="trajFile5" accept=".txt,.csv" title="上传测斜数据（每行：井深 井斜 方位，逗号/空格分隔）——写入②页轨迹表后重绘">
+      <span style="font-size:11.5px;color:var(--dim)">上传 .txt/.csv 会写入 ② 页「井眼轨迹」文本框（三列：井深 井斜 方位），保持单一数据源</span>
+    </div>
+    <div class="tblscroll" id="trajTbl"></div>
+    <div class="note">口径：最小曲率法（Minimum Curvature）；狗腿度 DLS = arccos[cos(θ₂−θ₁) − sinθ₁·sinθ₂·(1−cos(φ₂−φ₁))] × 30 / ΔMD，单位 °/30m；方位为方位角（0° = 正北，顺时针）。</div>
+  </div>
+
+</div>
 </section>
 
 
@@ -5911,6 +6006,7 @@ el.innerHTML = window.uout(UT.isSI()
         if (pc && pc.dataset.used === '1') window.pvtCalib();                   /* E1b 两点反算 */
       } catch (e) {}
     }
+    if (typeof window.__trajRender === 'function') { try { window.__trajRender(); } catch (e) {} }   /* ⑤ 井眼轨迹图 */
     toast('已切换到' + UT.sysFull() + '。全站输入与结果已同步换算。');
   }
 
@@ -15979,12 +16075,13 @@ try{ runTrip(); }catch(e){ console.warn('[runTrip init]', e); }
 <script>
 /* ================= 标签切换 + 参数互导 ================= */
 function switchTab(which){
-  ['cts','ecd','trip','calib'].forEach(k=>{
+  ['cts','ecd','trip','calib','traj'].forEach(k=>{
     document.getElementById('pane-'+k).classList.toggle('on',k===which);
     document.getElementById('tab-'+k).classList.toggle('on',k===which);
   });
   if(which==='trip'){ try{ window.runTrip && window.runTrip(); }catch(e){ console.warn('[trip]',e); } }
   if(which==='calib'){ try{ window.__calibReady && window.__calibReady(); }catch(e){ console.warn('[calib]',e); } }
+  if(which==='traj'){ try{ window.__trajRender && window.__trajRender(); }catch(e){ console.warn('[traj]',e); } }
 }
 function v(id){ var e=document.getElementById(id); return e?e.value:''; }
 function setv(id,val){ var e=document.getElementById(id); if(e&&val!==undefined&&val!==null&&val!=='') e.value=val; }
@@ -17734,6 +17831,469 @@ report.innerHTML = window.uout(demoWarn + html);
 
 
 
+</script>
+<script>
+/* ============================================================================
+ * ⑤ 井眼轨迹图（pane-traj）—— 垂直剖面图 + 顶视图
+ * ----------------------------------------------------------------------------
+ * 数据源（单一数据源原则：不另建输入口，避免两处轨迹跑漂）
+ *   1) ② CTS-DEM「井眼轨迹」#traj —— 三列「井深 井斜(°) 方位(°)」（首选，含方位）
+ *   2) ① ECD 页「井斜表」#i_survey —— 两列「井深, 井斜」（② 为空时回落；
+ *      井斜表无方位列 → 按方位 0° 投影，顶视图退化为直线，页内有明确提示）
+ *   深度列一律按【当前单位制】读入（ECDUnits.toBase('len', …)），与 ② parseTraj 同口径；
+ *   输出（轴刻度/悬停/表格/KPI）一律走 UU/UL 出口，随单位制整体切换。
+ * 算法：最小曲率法（Minimum Curvature），与 ② 页 parseTraj 同一公式；
+ *   狗腿度 DLS = arccos[cos(θ₂−θ₁) − sinθ₁·sinθ₂·(1−cos(φ₂−φ₁))] × 30 / ΔMD  (°/30m)
+ *   垂直剖面 VS = 水平位移在「井口→井底总位移方向」上的投影。
+ * ========================================================================== */
+(function (root) {
+  'use strict';
+  var U = root.ECDUnits || null;
+  var RAD = Math.PI / 180, DEG = 180 / Math.PI;
+
+  function toBaseLen(v) { try { return U ? U.toBase('len', v) : v; } catch (e) { return v; } }
+  function UU(k, v) { try { return (root.UU ? root.UU(k, v) : v); } catch (e) { return v; } }
+  function UL(k) { try { return (root.UL ? root.UL(k) : ''); } catch (e) { return ''; } }
+  function fnum(x) { var v = parseFloat(x); return isFinite(v) ? v : null; }
+  function $(id) { return document.getElementById(id); }
+  function fmtLen(v, d) { var x = UU('len', v); return (d == null ? x : x.toFixed(d)) + ' ' + UL('len'); }
+
+  /* ---- 行解析：容忍逗号/分号/空白分隔，跳过空行与 # 注释 ---- */
+  function parseRows(txt) {
+    var out = [];
+    String(txt || '').split(/\r?\n/).forEach(function (ln) {
+      ln = ln.trim(); if (!ln || /^[#\/]/.test(ln)) return;
+      var p = ln.split(/[\s,;\t，；]+/).filter(function (s) { return s.length; });
+      var nums = p.map(fnum);
+      if (nums.length < 2 || nums[0] === null || nums[1] === null) return;
+      out.push(nums);
+    });
+    return out;
+  }
+
+  /* ---- 读数据源：{st:[{md,inc,azi}], aziKnown, from}；md 已换算 SI ---- */
+  function readSource() {
+    var r = { st: [], aziKnown: false, from: '' };
+    var rows2 = parseRows($('traj') ? $('traj').value : '');
+    var hasAzi2 = rows2.length >= 2 && rows2.every(function (x) { return x.length >= 3 && x[2] !== null; });
+    if (rows2.length >= 2) {
+      r.st = rows2.map(function (x) { return { md: toBaseLen(x[0]), inc: x[1], azi: hasAzi2 ? x[2] : 0 }; });
+      r.aziKnown = hasAzi2;
+      r.from = '② CTS-DEM 轨迹表（' + r.st.length + ' 测点' + (hasAzi2 ? ' · 含方位' : ' · 无方位列 · 按 0°') + '）';
+      return r;
+    }
+    var rows1 = parseRows($('i_survey') ? $('i_survey').value : '');
+    if (rows1.length >= 2) {
+      var on = $('i_useSurvey') ? $('i_useSurvey').checked : false;
+      r.st = rows1.map(function (x) { return { md: toBaseLen(x[0]), inc: x[1], azi: 0 }; });
+      r.aziKnown = false;
+      r.from = '① ECD 页井斜表（' + r.st.length + ' 测点 · 无方位列 → 按 0°' + (on ? '' : ' · 未勾选「使用井斜表」· 仅作展示') + '）';
+      return r;
+    }
+    r.from = '未找到轨迹数据';
+    return r;
+  }
+
+  /* ---- 最小曲率法：测点 → [{md,tvd,n,e,inc,azi,dls,vs}]（数组附 azRef 属性） ---- */
+  function minCurv(st) {
+    var out = [{ md: st[0].md, tvd: 0, n: 0, e: 0, inc: st[0].inc, azi: st[0].azi, dls: 0 }];
+    var tvd = 0, N = 0, E = 0;
+    for (var i = 1; i < st.length; i++) {
+      var a = st[i - 1], b = st[i];
+      var dmd = b.md - a.md;
+      if (!(dmd > 0)) continue;
+      var i1 = a.inc * RAD, i2 = b.inc * RAD, a1 = a.azi * RAD, a2 = b.azi * RAD;
+      var cb = Math.cos(i2 - i1) - Math.sin(i1) * Math.sin(i2) * (1 - Math.cos(a2 - a1));
+      cb = Math.max(-1, Math.min(1, cb));
+      var beta = Math.acos(cb);
+      var rf = Math.abs(beta) < 1e-9 ? 1 : 2 / beta * Math.tan(beta / 2);
+      tvd += dmd / 2 * (Math.cos(i1) + Math.cos(i2)) * rf;
+      N += dmd / 2 * (Math.sin(i1) * Math.cos(a1) + Math.sin(i2) * Math.cos(a2)) * rf;
+      E += dmd / 2 * (Math.sin(i1) * Math.sin(a1) + Math.sin(i2) * Math.sin(a2)) * rf;
+      out.push({ md: b.md, tvd: tvd, n: N, e: E, inc: b.inc, azi: b.azi, dls: beta * DEG * 30 / dmd });
+    }
+    var last = out[out.length - 1];
+    var azRef = Math.atan2(last.e, last.n) * DEG;          /* 总位移方位（0=正北，顺时针） */
+    var cs = Math.cos(azRef * RAD), sn = Math.sin(azRef * RAD);
+    out.forEach(function (p) { p.vs = p.n * cs + p.e * sn; });
+    out.azRef = azRef;
+    return out;
+  }
+
+  /* ---- 画布准备（DPR 适配；隐藏页签 clientWidth=0 时返回 null 跳过） ---- */
+  function setupCv(cv, cssH) {
+    if (!cv || !cv.getContext) return null;
+    var ctx = cv.getContext('2d');
+    var dpr = Math.min(2, root.devicePixelRatio || 1);
+    var cssW = cv.clientWidth || (cv.parentNode ? cv.parentNode.clientWidth : 0) || 900;
+    if (cssW < 50) return null;
+    cv.style.height = cssH + 'px';
+    cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx: ctx, W: cssW, H: cssH };
+  }
+
+  var GRID = '#d8e0e9', TXT = '#5c6b7a', BLUE = '#1a63c4', RED = '#c8332a', GREEN = '#1a7f37', GRAY = '#8fa3b8';
+
+  /* ---- 测点标注密度：约 12~20 个标注点 ---- */
+  function labelStep(n) { return Math.max(1, Math.ceil(n / 16)); }
+
+  /* ================= 垂直剖面图（VS × TVD） ================= */
+  function drawVS(pts, meta) {
+    var cv = $('trajCvVS'); if (!cv) return;
+    var S = setupCv(cv, root.innerWidth < 800 ? 460 : 520); if (!S) return;
+    var ctx = S.ctx, W = S.W, H = S.H;
+    var pL = 66, pR = 22, pT = 30, pB = 48;
+    var pw = W - pL - pR, ph = H - pT - pB;
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '11px sans-serif';
+
+    var vsMin = Math.min.apply(null, pts.map(function (p) { return p.vs; }));
+    var vsMax = Math.max.apply(null, pts.map(function (p) { return p.vs; }));
+    var tvdMax = pts[pts.length - 1].tvd || 1;
+    var padV = (vsMax - vsMin) * 0.08 || tvdMax * 0.02;
+    vsMin -= padV; vsMax += padV;
+    var tMin = -tvdMax * 0.02, tMax = tvdMax * 1.03;
+    function X(v) { return pL + (v - vsMin) / (vsMax - vsMin || 1) * pw; }
+    function Y(t) { return pT + (t - tMin) / (tMax - tMin) * ph; }
+
+    /* 网格 + 轴标签 */
+    ctx.strokeStyle = GRID; ctx.fillStyle = TXT;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (var g = 0; g <= 5; g++) {
+      var tv = tMin + (tMax - tMin) * g / 5, yy = Y(tv);
+      ctx.beginPath(); ctx.moveTo(pL, yy); ctx.lineTo(pL + pw, yy); ctx.stroke();
+      ctx.fillText(UU('len', tv).toFixed(0), pL - 7, yy);
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (var g2 = 0; g2 <= 6; g2++) {
+      var vv = vsMin + (vsMax - vsMin) * g2 / 6, xx = X(vv);
+      ctx.beginPath(); ctx.moveTo(xx, pT); ctx.lineTo(xx, pT + ph); ctx.stroke();
+      ctx.fillText(UU('len', vv).toFixed(0), xx, pT + ph + 6);
+    }
+    ctx.fillStyle = TXT; ctx.textBaseline = 'top';
+    ctx.fillText('垂直剖面长度 VS (' + UL('len') + ')', pL + pw / 2 - 62, H - 16);
+    ctx.save(); ctx.translate(12, pT + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center'; ctx.fillText('垂深 TVD (' + UL('len') + ') ↓', 0, 0); ctx.restore();
+    ctx.textAlign = 'left'; ctx.fillStyle = GRAY;
+    ctx.fillText('剖面方向 = 总位移方位 ' + meta.azRef.toFixed(1) + '°' + (meta.aziKnown ? '' : '（无方位数据 · 按 0°）'), pL + 2, 8);
+
+    /* 井眼轨迹 */
+    ctx.strokeStyle = BLUE; ctx.lineWidth = 2; ctx.beginPath();
+    pts.forEach(function (p, i) { var x = X(p.vs), y = Y(p.tvd); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+    ctx.stroke();
+
+    /* 特殊点：KOP（开始造斜）、最大井斜、井口、井底 */
+    var kopIdx = -1, maxIdx = 0;
+    for (var k = 1; k < pts.length; k++) if (pts[k].inc > pts[maxIdx].inc) maxIdx = k;
+    for (var k2 = 1; k2 < pts.length; k2++) {
+      if (pts[k2].inc > 1 && pts[k2].inc >= pts[k2 - 1].inc) { kopIdx = k2; break; }
+    }
+    function mark(idx, color, label, dy) {
+      var p = pts[idx], x = X(p.vs), y = Y(p.tvd);
+      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = color; ctx.font = '10.5px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+      ctx.fillText(label + ' MD ' + UU('len', p.md).toFixed(0), x + 6, y + (dy || -3));
+      ctx.font = '11px sans-serif';
+    }
+    if (kopIdx > 0) mark(kopIdx, '#8a5d00', 'KOP 造斜点', 12);
+    if (pts.length > 2 && pts[maxIdx].inc > 5) mark(maxIdx, '#e8a13a', '最大井斜 ' + pts[maxIdx].inc.toFixed(0) + '°', -3);
+    var p0 = pts[0], pT_ = pts[pts.length - 1];
+    ctx.fillStyle = GREEN; ctx.beginPath(); ctx.arc(X(p0.vs), Y(0), 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = GREEN; ctx.font = '11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('井口', X(p0.vs) + 8, Y(0) + 2);
+    ctx.fillStyle = RED;
+    var xt = X(pT_.vs), yt = Y(pT_.tvd);
+    ctx.beginPath(); ctx.moveTo(xt, yt + 8); ctx.lineTo(xt - 5, yt - 2); ctx.lineTo(xt + 5, yt - 2); ctx.closePath(); ctx.fill();
+    ctx.textAlign = xt > pL + pw - 90 ? 'right' : 'left';
+    ctx.fillText('▼ 井底 MD ' + UU('len', pT_.md).toFixed(0) + ' ' + UL('len'), xt + (xt > pL + pw - 90 ? -8 : 8), yt - 10);
+
+    /* 测点 + MD 标注 */
+    var step = labelStep(pts.length);
+    ctx.fillStyle = GRAY;
+    for (var i = 0; i < pts.length; i++) {
+      var x = X(pts[i].vs), y = Y(pts[i].tvd);
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+      if (i % step === 0 && i !== 0 && i !== pts.length - 1) {
+        ctx.fillStyle = GRAY; ctx.font = '9.5px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(UU('len', pts[i].md).toFixed(0), x, y - 4);
+      }
+    }
+    ctx.font = '11px sans-serif';
+
+    /* 悬停命中表 + 绑定 */
+    var scr = pts.map(function (p) { return { x: X(p.vs), y: Y(p.tvd), p: p }; });
+    bindHover(cv, 'trajTipVS', scr, function (p) {
+      return '<b>斜深 MD ' + fmtLen(p.md, 0) + '</b>（测点 ' + (pts.indexOf(p) + 1) + '/' + pts.length + '）' +
+        '<div style="display:grid;grid-template-columns:auto auto;column-gap:12px;margin-top:3px">' +
+        '<span>垂深 TVD：</span><b>' + fmtLen(p.tvd, 0) + '</b>' +
+        '<span>垂直剖面 VS：</span><b>' + fmtLen(p.vs, 0) + '</b>' +
+        '<span>井斜 inc：</span><b>' + p.inc.toFixed(1) + ' °</b>' +
+        '<span>方位 azi：</span><b>' + p.azi.toFixed(1) + ' °</b>' +
+        '<span>狗腿度 DLS：</span><b>' + p.dls.toFixed(2) + ' °/30m</b></div>';
+    }, function (idx) {
+      ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+      var sx = scr[idx].x, sy = scr[idx].y;
+      ctx.beginPath(); ctx.moveTo(sx, pT); ctx.lineTo(sx, pT + ph); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pL, sy); ctx.lineTo(pL + pw, sy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = BLUE; ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI * 2); ctx.fill();
+    }, function () { drawVS(pts, meta); });
+  }
+
+  /* ================= 顶视图（N × E，等比例） ================= */
+  function drawTop(pts, meta) {
+    var cv = $('trajCvTop'); if (!cv) return;
+    var S = setupCv(cv, root.innerWidth < 800 ? 460 : 520); if (!S) return;
+    var ctx = S.ctx, W = S.W, H = S.H;
+    var pL = 66, pR = 22, pT = 30, pB = 48;
+    var pw = W - pL - pR, ph = H - pT - pB;
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '11px sans-serif';
+
+    var nArr = pts.map(function (p) { return p.n; }), eArr = pts.map(function (p) { return p.e; });
+    var nMin = Math.min.apply(null, nArr), nMax = Math.max.apply(null, nArr);
+    var eMin = Math.min.apply(null, eArr), eMax = Math.max.apply(null, eArr);
+    var span = Math.max(nMax - nMin, eMax - eMin, 100);       /* 等比例 + 100m 下限（直井也有参照） */
+    var cn = (nMax + nMin) / 2, ce = (eMax + eMin) / 2;
+    var n0 = cn - span / 2, n1 = cn + span / 2, e0 = ce - span / 2, e1 = ce + span / 2;
+    function X(e) { return pL + (e - e0) / (e1 - e0) * pw; }
+    function Y(n) { return pT + (n1 - n) / (n1 - n0) * ph; }
+
+    /* 网格 + 轴标签 */
+    ctx.strokeStyle = GRID; ctx.fillStyle = TXT;
+    ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    for (var g = 0; g <= 5; g++) {
+      var nn = n1 - (n1 - n0) * g / 5, yy = Y(nn);
+      ctx.beginPath(); ctx.moveTo(pL, yy); ctx.lineTo(pL + pw, yy); ctx.stroke();
+      ctx.fillText(UU('len', nn).toFixed(0), pL - 7, yy);
+    }
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    for (var g2 = 0; g2 <= 6; g2++) {
+      var ee = e0 + (e1 - e0) * g2 / 6, xx = X(ee);
+      ctx.beginPath(); ctx.moveTo(xx, pT); ctx.lineTo(xx, pT + ph); ctx.stroke();
+      ctx.fillText(UU('len', ee).toFixed(0), xx, pT + ph + 6);
+    }
+    ctx.fillStyle = TXT; ctx.textBaseline = 'top';
+    ctx.fillText('东 E (' + UL('len') + ') →', pL + pw / 2 - 30, H - 16);
+    ctx.save(); ctx.translate(12, pT + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = 'center'; ctx.fillText('↑ 北 N (' + UL('len') + ')', 0, 0); ctx.restore();
+
+    /* 原点十字（井口参考） */
+    if (e0 < 0 && e1 > 0 && n0 < 0 && n1 > 0) {
+      ctx.strokeStyle = 'rgba(120,140,160,.35)'; ctx.setLineDash([2, 4]);
+      ctx.beginPath(); ctx.moveTo(X(0), pT); ctx.lineTo(X(0), pT + ph); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pL, Y(0)); ctx.lineTo(pL + pw, Y(0)); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    /* 指北针（右上角） */
+    (function () {
+      var ax = pL + pw - 26, ay = pT + 14;
+      ctx.strokeStyle = TXT; ctx.fillStyle = TXT; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(ax, ay + 12); ctx.lineTo(ax, ay - 12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(ax, ay - 16); ctx.lineTo(ax - 4, ay - 8); ctx.lineTo(ax + 4, ay - 8); ctx.closePath(); ctx.fill();
+      ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText('N', ax, ay + 16);
+      ctx.lineWidth = 1; ctx.font = '11px sans-serif';
+    })();
+
+    /* 井眼轨迹 */
+    ctx.strokeStyle = BLUE; ctx.lineWidth = 2; ctx.beginPath();
+    pts.forEach(function (p, i) { var x = X(p.e), y = Y(p.n); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+    ctx.stroke();
+
+    /* 井口 / 井底 */
+    var p0 = pts[0], pT_ = pts[pts.length - 1];
+    ctx.fillStyle = GREEN; ctx.beginPath(); ctx.arc(X(p0.e), Y(p0.n), 5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = GREEN; ctx.font = '11px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('井口 (0, 0)', X(p0.e) + 8, Y(p0.n) + 2);
+    ctx.fillStyle = RED;
+    var xt = X(pT_.e), yt = Y(pT_.n);
+    ctx.beginPath(); ctx.moveTo(xt, yt + 8); ctx.lineTo(xt - 5, yt - 2); ctx.lineTo(xt + 5, yt - 2); ctx.closePath(); ctx.fill();
+    ctx.textAlign = xt > pL + pw - 110 ? 'right' : 'left';
+    ctx.fillText('▼ 井底 MD ' + UU('len', pT_.md).toFixed(0) + ' ' + UL('len'), xt + (xt > pL + pw - 110 ? -8 : 8), yt - 10);
+    ctx.fillStyle = GRAY; ctx.font = '10px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('总位移 ' + fmtLen(meta.closure, 0) + ' ｜ 方位 ' + meta.azRef.toFixed(1) + '°', pL + 4, 6);
+
+    /* 测点 + MD 标注 */
+    var step = labelStep(pts.length);
+    for (var i = 0; i < pts.length; i++) {
+      var x = X(pts[i].e), y = Y(pts[i].n);
+      ctx.fillStyle = GRAY; ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
+      if (i % step === 0 && i !== 0 && i !== pts.length - 1) {
+        ctx.font = '9.5px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(UU('len', pts[i].md).toFixed(0), x, y - 4);
+      }
+    }
+    ctx.font = '11px sans-serif';
+
+    var scr = pts.map(function (p) { return { x: X(p.e), y: Y(p.n), p: p }; });
+    bindHover(cv, 'trajTipTop', scr, function (p) {
+      return '<b>斜深 MD ' + fmtLen(p.md, 0) + '</b>（测点 ' + (pts.indexOf(p) + 1) + '/' + pts.length + '）' +
+        '<div style="display:grid;grid-template-columns:auto auto;column-gap:12px;margin-top:3px">' +
+        '<span>北 N：</span><b>' + fmtLen(p.n, 0) + '</b>' +
+        '<span>东 E：</span><b>' + fmtLen(p.e, 0) + '</b>' +
+        '<span>垂深 TVD：</span><b>' + fmtLen(p.tvd, 0) + '</b>' +
+        '<span>井斜 inc：</span><b>' + p.inc.toFixed(1) + ' °</b>' +
+        '<span>方位 azi：</span><b>' + p.azi.toFixed(1) + ' °</b>' +
+        '<span>狗腿度 DLS：</span><b>' + p.dls.toFixed(2) + ' °/30m</b></div>';
+    }, function (idx) {
+      ctx.strokeStyle = 'rgba(0,0,0,.28)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]);
+      var sx = scr[idx].x, sy = scr[idx].y;
+      ctx.beginPath(); ctx.moveTo(sx, pT); ctx.lineTo(sx, pT + ph); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(pL, sy); ctx.lineTo(pL + pw, sy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = BLUE; ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI * 2); ctx.fill();
+    }, function () { drawTop(pts, meta); });
+  }
+
+  /* ---- 通用悬停绑定：scr = [{x,y,p}]（CSS 像素坐标），redraw(idx) 画十字线 ---- */
+  function bindHover(cv, tipId, scr, tipHtml, redraw, clear) {
+    var tip = $(tipId);
+    function nearest(cx, cy) {
+      var best = -1, bd = 1e9;
+      for (var i = 0; i < scr.length; i++) {
+        var dx = scr[i].x - cx, dy = scr[i].y - cy, d = dx * dx + dy * dy;
+        if (d < bd) { bd = d; best = i; }
+      }
+      return best;
+    }
+    function probe(cX, cY) {
+      var r = cv.getBoundingClientRect(); if (!r.width || !r.height) return;
+      var mx = cX - r.left, my = cY - r.top;
+      var idx = nearest(mx, my);
+      if (idx < 0) return;
+      clear(); redraw(idx);
+      var p = scr[idx].p;
+      tip.innerHTML = root.uout ? root.uout(tipHtml(p)) : tipHtml(p);
+      tip.style.display = 'block';
+      var tw = tip.offsetWidth || 230, th = tip.offsetHeight || 150;
+      var left = mx + 14; if (left + tw > r.width) left = Math.max(0, mx - tw - 14);
+      var top = my - 10; if (top + th > r.height) top = Math.max(0, r.height - th); if (top < 0) top = 0;
+      tip.style.left = left + 'px'; tip.style.top = top + 'px';
+    }
+    function hide() { if (tip) tip.style.display = 'none'; clear(); }
+    cv.onmousemove = function (e) { probe(e.clientX, e.clientY); };
+    cv.onmouseleave = hide;
+    cv.ontouchstart = function (e) { var t = e.touches[0]; if (t) { e.preventDefault(); probe(t.clientX, t.clientY); } };
+    cv.ontouchmove = function (e) { var t = e.touches[0]; if (t) { e.preventDefault(); probe(t.clientX, t.clientY); } };
+    cv.ontouchend = hide;
+  }
+
+  /* ---- 空态：在画布上画提示文字 ---- */
+  function drawEmpty(cvId, msg) {
+    var cv = $(cvId); if (!cv) return;
+    var S = setupCv(cv, 300); if (!S) return;
+    var ctx = S.ctx;
+    ctx.clearRect(0, 0, S.W, S.H);
+    ctx.fillStyle = GRAY; ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    String(msg).split('\n').forEach(function (ln, i) {
+      ctx.fillText(ln, S.W / 2, S.H / 2 - 14 + i * 20);
+    });
+  }
+
+  /* ================= KPI ================= */
+  function drawKpi(pts, meta) {
+    var el = $('trajKpi'); if (!el) return;
+    if (!pts.length) { el.innerHTML = ''; return; }
+    var last = pts[pts.length - 1];
+    var maxInc = 0, maxDls = 0, maxDlsMd = 0;
+    pts.forEach(function (p) {
+      if (p.inc > maxInc) maxInc = p.inc;
+      if (p.dls > maxDls) { maxDls = p.dls; maxDlsMd = p.md; }
+    });
+    function card(l, v, u) {
+      return '<div class="tkpi"><div class="l">' + l + '</div><div class="v">' + v + '</div><div class="u">' + u + '</div></div>';
+    }
+    el.innerHTML =
+      card('测点数', pts.length, '② / ① 轨迹表') +
+      card('井底斜深 MD', UU('len', last.md).toFixed(0), UL('len')) +
+      card('垂深 TVD', UU('len', last.tvd).toFixed(0), UL('len') + '（MD−TVD=' + UU('len', last.md - last.tvd).toFixed(0) + '）') +
+      card('水平位移', UU('len', meta.closure).toFixed(0), UL('len') + ' ｜ 方位 ' + meta.azRef.toFixed(1) + '°') +
+      card('井底井斜', last.inc.toFixed(1), '° ｜ 最大 ' + maxInc.toFixed(1) + '°') +
+      card('最大狗腿度', maxDls.toFixed(2), '°/30m @ MD ' + UU('len', maxDlsMd).toFixed(0) + ' ' + UL('len'));
+  }
+
+  /* ================= 测点明细表 ================= */
+  function drawTable(pts, meta) {
+    var el = $('trajTbl'); if (!el) return;
+    var sub = $('trajTblSub');
+    if (sub) sub.textContent = '（' + pts.length + ' 个测点 · 最小曲率法 · 单位随当前单位制）';
+    if (!pts.length) { el.innerHTML = '<div class="empty">暂无测点数据</div>'; return; }
+    var u = UL('len');
+    var html = '<table><tr><th>#</th><th>MD (' + u + ')</th><th>TVD (' + u + ')</th><th>VS (' + u + ')</th><th>N (' + u + ')</th><th>E (' + u + ')</th>' +
+      '<th>井斜 (°)</th><th>方位 (°)</th><th>DLS (°/30m)</th></tr>';
+    pts.forEach(function (p, i) {
+      html += '<tr><td>' + (i + 1) + '</td><td>' + UU('len', p.md).toFixed(0) + '</td><td>' + UU('len', p.tvd).toFixed(0) + '</td>' +
+        '<td>' + UU('len', p.vs).toFixed(0) + '</td><td>' + UU('len', p.n).toFixed(0) + '</td><td>' + UU('len', p.e).toFixed(0) + '</td>' +
+        '<td>' + p.inc.toFixed(1) + '</td><td>' + p.azi.toFixed(1) + '</td><td>' + p.dls.toFixed(2) + '</td></tr>';
+    });
+    html += '</table>';
+    el.innerHTML = html;
+  }
+
+  /* ================= 主入口 ================= */
+  function render() {
+    var src = readSource();
+    var srcEl = $('trajSrc'), stamp = $('trajStamp'), aziNote = $('trajAziNote');
+    if (srcEl) srcEl.textContent = src.from;
+    if (aziNote) aziNote.innerHTML = src.aziKnown ? '' : '　<b style="color:var(--accent)">当前数据无方位列 → 顶视图按 0° 示意。</b>';
+    if (src.st.length < 2) {
+      drawKpi([], {});
+      drawTable([], {});
+      if ($('trajKpi')) $('trajKpi').innerHTML = '';
+      if ($('trajTbl')) $('trajTbl').innerHTML = '<div class="empty">暂无测点数据</div>';
+      drawEmpty('trajCvVS', '未找到轨迹数据\n请到 ② CTS-DEM 页「A · 井眼轨迹」粘贴测斜表（每行：井深 井斜 方位）\n或在下方「测点明细」卡上传 .txt/.csv');
+      drawEmpty('trajCvTop', '未找到轨迹数据\n② 页轨迹为空时，也可在 ① ECD 页填「井斜表」（井深, 井斜）');
+      if (stamp) stamp.textContent = '';
+      return;
+    }
+    var pts = minCurv(src.st);
+    var last = pts[pts.length - 1];
+    var meta = { closure: Math.hypot(last.n, last.e), azRef: pts.azRef, aziKnown: src.aziKnown };
+    drawKpi(pts, meta);
+    drawVS(pts, meta);
+    drawTop(pts, meta);
+    drawTable(pts, meta);
+    if (stamp) {
+      var d = new Date(), p2 = function (n) { return String(n).padStart(2, '0'); };
+      stamp.textContent = '✓ 已绘制 ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+    }
+  }
+  root.__trajRender = render;
+
+  /* ---- 文件上传：写入 ② 页轨迹文本框（单一数据源），随后重绘 ---- */
+  (function () {
+    var fi = $('trajFile5'); if (!fi) return;
+    fi.addEventListener('change', function (e) {
+      var f = e.target.files && e.target.files[0]; if (!f) return;
+      var r = new FileReader();
+      r.onload = function (ev) {
+        var ta = $('traj');
+        if (ta) ta.value = ev.target.result;
+        render();
+        try { if (root.toast) root.toast('已载入 ' + f.name + ' → ② 页轨迹表（' + (parseRows(ev.target.result).length) + ' 行）'); } catch (e2) {}
+      };
+      r.readAsText(f);
+    });
+  })();
+
+  /* ---- 窗口尺寸变化：重绘（防画布拉伸模糊） ---- */
+  var rsT = null;
+  root.addEventListener('resize', function () {
+    clearTimeout(rsT);
+    rsT = setTimeout(function () {
+      var pane = $('pane-traj');
+      if (pane && pane.classList.contains('on')) render();
+    }, 180);
+  });
+
+  /* 首屏不渲染（页签不可见时 clientWidth=0）；切到本页或改单位制时由钩子触发 */
+})(typeof window !== 'undefined' ? window : this);
 </script>
 </body>
 </html>
