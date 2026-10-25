@@ -373,6 +373,15 @@ html,body{max-width:100%;}
 
 #pane-ecd .sec-t:first-child{margin-top:0}
 
+/* ===== 小节折叠（点 sec-t 标题展开/收起 · 与 pane-cts 卡片折叠同一交互）===== */
+#pane-ecd .sec-t{cursor:pointer;position:relative;padding-right:22px;user-select:none;transition:opacity .15s}
+#pane-ecd .sec-t::after{content:'▾';position:absolute;right:2px;top:50%;transform:translateY(-50%);
+    font-size:10px;color:var(--tx3);line-height:1;transition:transform .18s;pointer-events:none}
+#pane-ecd .sec-t:hover::after{color:var(--ac)}
+#pane-ecd .sec-t.folded{opacity:.78}
+#pane-ecd .sec-t.folded::after{transform:translateY(-50%) rotate(-90deg)}
+#pane-ecd .sec-t.folded + .sec-bd{display:none}
+
 
 
 /* ===== 结果 ===== */
@@ -653,6 +662,12 @@ html,body{max-width:100%;}
 
   
 #pane-ecd .card .bd{display:block!important}
+
+/* 打印时小节全部展开（折叠态只影响屏幕浏览） */
+#pane-ecd .sec-t{cursor:default;padding-right:0}
+#pane-ecd .sec-t::after{display:none}
+#pane-ecd .sec-t.folded{opacity:1}
+#pane-ecd .sec-t.folded + .sec-bd{display:block!important}
 
   
 
@@ -2096,6 +2111,14 @@ html,body{max-width:100%;}
 
   <div id="warnbox"></div>
 
+  <!-- 小节折叠工具条：选填/高级小节默认折起，可一键全折/全开，状态本机记忆 -->
+  <div class="tools" style="margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <button class="btn sm" type="button" onclick="foldSecOpt()" title="把高级参数/瞬态标定这类暂时不用的小节收起，只留必填输入">▵ 折叠选填小节</button>
+    <button class="btn sm" type="button" onclick="foldSecAll(true)" title="连必填小节一起收起，只留小节标题">▵▵ 全部折叠</button>
+    <button class="btn sm" type="button" onclick="foldSecAll(false)" title="展开所有小节">▿ 全部展开</button>
+    <span style="font-size:11.5px;color:var(--tx3)">小节太多可逐节点标题折叠；状态自动记忆，打印 / 导出时自动全部展开</span>
+  </div>
+
   <!-- 导出内容浮层（下载被浏览器/沙箱拦掉时的兜底，内容可全选复制） -->
   <div class="modal" id="copyDlg" role="dialog" aria-modal="true" aria-labelledby="copyTitle">
     <div class="mbox">
@@ -2404,6 +2427,14 @@ html,body{max-width:100%;}
           <span class="d">不勾选 = 接立柱期间继续循环</span>
         </div>
       </div>
+      <div class="tools" style="margin-top:12px" data-secstop="1">
+        <button class="btn pri" id="btnTran">运行瞬态仿真</button>
+        <button class="btn" id="btnTranReset">复位默认</button>
+        <button class="btn" id="btnTranAuto"><span id="tranAutoTxt">自动跟随主计算：关</span></button>
+      </div>
+      <div id="tranOut" style="margin-top:12px" data-secstop="1"><div class="empty">点「运行瞬态仿真」开始。<br>
+        参数直接取上方「计算」的结果（同一套几何 / 流变 / 校准系数），无需重复输入。<br>
+        建议顺序：先点上方「计算」拿到稳态解 → 再点这里跑瞬态 → 看曲线与稳态对照。</div></div>
       <div class="sec-t">T2 · 床体动力学闭合系数（与 DFG 对账时的标定旋钮）</div>
       <div class="grid g3">
         <div class="f"><label>悬浮相携带容量上限 φ<sub>sus</sub><span class="u">%</span></label><input id="i_trPhiMax" placeholder="10"><span class="d">返速充足时流动最多能带走的体积分数</span></div>
@@ -2415,14 +2446,6 @@ html,body{max-width:100%;}
         <div class="f"><label>冲蚀起始速度 V<sub>ce</sub> / CRV</label><input id="i_trCev" placeholder="1.0"><span class="d">低于此值床体不再被冲刷</span></div>
         <div class="f"><label>床内固相体积分数<span class="u">%</span></label><input id="i_trCbed" placeholder="52"><span class="d">静止床 52 %（堆积孔隙度 48 %）</span></div>
       </div>
-      <div class="tools" style="margin-top:12px">
-        <button class="btn pri" id="btnTran">运行瞬态仿真</button>
-        <button class="btn" id="btnTranReset">复位默认</button>
-        <button class="btn" id="btnTranAuto"><span id="tranAutoTxt">自动跟随主计算：关</span></button>
-      </div>
-      <div id="tranOut" style="margin-top:12px"><div class="empty">点「运行瞬态仿真」开始。<br>
-        参数直接取上方「计算」的结果（同一套几何 / 流变 / 校准系数），无需重复输入。<br>
-        建议顺序：先点上方「计算」拿到稳态解 → 再点这里跑瞬态 → 看曲线与稳态对照。</div></div>
     </div>
   </div>
 
@@ -14689,6 +14712,90 @@ renderFigGallery();   /* ⑮ fig1-6 图集缩略图 + 灯箱 */
     persist();
     if(!collapse) redraw();
     try{ toast(collapse ? '✅ 已折叠全部卡片（点标题可单独展开）' : '✅ 已展开全部卡片'); }catch(e){}
+  };
+})();
+
+
+/* ===== ① 页小节折叠（点 sec-t 标题展开/收起 · 默认折起"暂时不用"的高级节）=====
+   与 pane-cts 的卡片折叠同一交互：localStorage 记忆、键盘可操作、打印时 CSS 强制展开。
+   实现方式：把每个 sec-t 之后的兄弟节点裹进 .sec-bd（到下一个 sec-t 或父级末尾为止），
+   折叠时隐藏对应的 .sec-bd。ID 取值全部走 getElementById，包裹不影响任何计算链路。 */
+(function(){
+  if(window.__ecdFoldBound) return;
+  window.__ecdFoldBound = true;
+  var root = document.getElementById('pane-ecd') || document.body;
+  var KEY  = 'ecd_fold_v1';
+  /* 首次打开（无记忆）时默认折起的小节（标题前缀匹配，' ·' 防止 E1 误伤 E1c/E1b） */
+  var DEF_FOLDED = ['E1c ·', 'E1b ·', 'E2 ·', 'E3 ·', 'E4 ·', 'E5 ·', 'T2 ·'];
+  var saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){ saved = null; }
+
+  /* ---- 包裹：sec-t → 后续兄弟进 .sec-bd ---- */
+  function wrapSections(bd){
+    [].slice.call(bd.children).forEach(function(el){
+      if(!el.classList || !el.classList.contains('sec-t')) return;
+      var buf = [], n = el.nextElementSibling;
+      while(n && !(n.classList && n.classList.contains('sec-t')) && !n.hasAttribute('data-secstop')){ buf.push(n); n = n.nextElementSibling; }
+      if(!buf.length) return;
+      var box = document.createElement('div');
+      box.className = 'sec-bd';
+      el.parentNode.insertBefore(box, buf[0]);
+      buf.forEach(function(x){ box.appendChild(x); });
+      el.setAttribute('data-secfold', '1');   /* 只接管静态小节；运行期生成的 sec-t 不裹 */
+    });
+  }
+  ['c-input', 'c-adv', 'c-tran'].forEach(function(id){
+    var c = document.getElementById(id); if(!c) return;
+    var bd = c.querySelector('.bd'); if(bd) wrapSections(bd);
+  });
+
+  /* 只统计被接管的小节（生成的 sec-t 没有 data-secfold，不受 foldSecAll 影响） */
+  function secs(){ return [].slice.call(root.querySelectorAll('.sec-t[data-secfold]')); }
+  function keyOf(t){ return (t.textContent||'').replace(/[\s\u3000]+/g,' ').trim().slice(0,16); }
+  function persist(){
+    var o = {};
+    secs().forEach(function(t){ var k = keyOf(t); if(k) o[k] = t.classList.contains('folded') ? 1 : 0; });
+    try{ localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){}
+  }
+  function setState(t, folded){
+    t.classList.toggle('folded', !!folded);
+    t.setAttribute('aria-expanded', folded ? 'false' : 'true');
+  }
+
+  secs().forEach(function(t){
+    if(t.__secFoldBound) return;
+    t.__secFoldBound = true;
+    t.title = '点击展开 / 收起该小节';
+    t.setAttribute('tabindex','0'); t.setAttribute('role','button');
+    function toggle(){
+      setState(t, !t.classList.contains('folded'));
+      persist();
+    }
+    t.addEventListener('click', toggle);
+    t.addEventListener('keydown', function(ev){
+      if(ev.key==='Enter' || ev.key===' ' || ev.key==='Spacebar'){ ev.preventDefault(); toggle(); }
+    });
+    /* 初次状态：有记忆按记忆；无记忆按 DEF_FOLDED（高级节收起、必填节展开） */
+    var k = keyOf(t);
+    var initFold = saved ? !!saved[k]
+                         : DEF_FOLDED.some(function(x){ return k.indexOf(x) === 0; });
+    setState(t, initFold);
+  });
+
+  /* 全局：只折高级/选填小节（恢复默认态） */
+  window.foldSecOpt = function(){
+    secs().forEach(function(t){
+      var k = keyOf(t);
+      setState(t, DEF_FOLDED.some(function(x){ return k.indexOf(x) === 0; }));
+    });
+    persist();
+    try{ toast('✅ 已收起高级/选填小节（必填输入保持展开，点小节标题可单独切换）'); }catch(e){}
+  };
+  /* 全局：小节全部折叠 / 全部展开 */
+  window.foldSecAll = function(collapse){
+    secs().forEach(function(t){ setState(t, !!collapse); });
+    persist();
+    try{ toast(collapse ? '✅ 已折叠全部小节（点小节标题可单独展开）' : '✅ 已展开全部小节'); }catch(e){}
   };
 })();
 
