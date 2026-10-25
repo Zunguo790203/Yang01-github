@@ -106,6 +106,36 @@ html,body{max-width:100%;}
 @media(max-width:800px){#pane-trip .tkpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 <style>
+/* ===== 跨页卡片折叠（③ 起下钻 / ④ 实测标定 / ⑤ 井眼轨迹图）=====
+   点卡片标题展开/收起，默认折起"结果/查阅型"卡片、保留输入型卡片展开。
+   与 ② 页 .collapsed、① 页 .open 相互独立（fc 前缀），打印时强制全部展开。 */
+.fc-card{cursor:pointer;position:relative;user-select:none;transition:opacity .15s}
+.fc-card h2{cursor:pointer}
+.fc-card > h2:first-child{padding-right:34px!important}
+.fc-card > h2:first-child::after{content:'▾';position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  font-size:10px;color:var(--dim);line-height:1;transition:transform .18s;pointer-events:none}
+.fc-card > h2:first-child:hover::after{color:var(--accent)}
+.fc-card.fc-folded > h2:first-child{opacity:.78}
+.fc-card.fc-folded > h2:first-child::after{transform:translateY(-50%) rotate(-90deg)}
+.fc-card.fc-folded > h2:first-child::before{content:'　▸ 已折叠，点击展开';font-size:10.5px;
+  font-weight:400;color:var(--dim);opacity:.9}
+.fc-card.fc-folded > *:not(h2:first-child){display:none!important}
+.fc-card.fc-folded{padding-bottom:11px}
+.fc-card.fc-folded > h2:first-child{margin-bottom:0}
+.fc-tools{margin:0 0 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.fc-tools button{background:var(--soft);border:1px solid var(--line);color:var(--txt);
+  padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-family:inherit}
+.fc-tools button:hover{border-color:var(--accent);color:var(--accent)}
+@media print{
+  .fc-card{cursor:default}
+  .fc-card > h2:first-child::after{display:none}
+  .fc-card.fc-folded > h2:first-child::before{content:''}
+  .fc-card.fc-folded > h2:first-child{opacity:1}
+  .fc-card.fc-folded > *:not(h2:first-child){display:block!important}
+  .fc-tools{display:none}
+}
+</style>
+<style>
 /* ===== ⑤ 井眼轨迹图（作用域 #pane-traj，浅色护眼主题 · 复用②/①轨迹输入） ===== */
 #pane-traj .twrap{max-width:1180px;margin:0 auto;padding:14px 14px 80px}
 #pane-traj .tbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;
@@ -2025,7 +2055,13 @@ html,body{max-width:100%;}
 
   <div class="tkpis" id="tripKpi"></div>
 
-  <div class="tcard">
+  <div class="fc-tools">
+    <button type="button" onclick="fcFoldAll('trip',true)" title="收起全部卡片，只留标题（便于快速定位）">▵ 全部折叠</button>
+    <button type="button" onclick="fcFoldAll('trip',false)" title="展开全部卡片">▿ 全部展开</button>
+    <span style="font-size:11.5px;color:var(--dim)">点卡片标题可单独折叠；状态自动记忆，打印时自动全部展开</span>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trip1">
     <h2>① ECD / ESD 汇总剖面 <span class="sub">（循环 ECD 含/不含岩屑 + 起下钻不同钻具长度的激动/抽汲 ECD，全部汇于一张图 · 鼠标悬停联动取数）</span></h2>
     <div class="rel">
       <canvas id="tripCv1" width="900" height="480"></canvas>
@@ -2046,7 +2082,7 @@ html,body{max-width:100%;}
     <div class="note">💡 取数：电脑<b>鼠标悬停</b>，手机<b>手指按住图内上下拖动</b>（抬手后数值保留）。读数含 MD/TVD/井斜与六状态当量密度（g/cm³）。<b>纵轴 = 斜深 MD（0 在顶部 / 井底在底部）</b>。</div>
   </div>
 
-  <div class="tcard">
+  <div class="tcard fc-card" data-fckey="trip2">
     <h2>② 起下钻每根立柱 ECD / ESD <span class="sub">（按单根/立柱长度从井底向井口步进，可滚动）</span></h2>
       <div class="rel">
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
@@ -2071,13 +2107,13 @@ html,body{max-width:100%;}
     <div class="note">起钻：钻头退至该深度时的环空<b>抽汲 ESD</b>（不含循环）；下钻：钻头进至该深度时的<b>循环+激动 ECD</b>。<span class="warn">红色</span> = 抽汲 ESD 低于静态 0.05 g/cm³ 以上的高风险立柱位。</div>
   </div>
 
-  <div class="tcard">
+  <div class="tcard fc-card" data-fckey="trip3">
     <h2>③ 岩屑 CUTtime 各引擎汇总 <span class="sub">（各引擎产生的岩屑从井底到井口的运移时间，集中对照）</span></h2>
     <div class="enginecard" id="tripCutEngines"></div>
     <div class="note" id="tripCutNote"></div>
   </div>
 
-  <div class="tcard">
+  <div class="tcard fc-card" data-fckey="trip4">
     <h2>④ 井眼清洁诊断 <span class="sub">（Herschel-Bulkley 三参数 + Walker&amp;Mayes 分段积分；判据汇总自 M-I DFEM Ch.20B / Baroid 手册 / 钻井液流变学）</span></h2>
     <div class="enginecard" id="hcKpi"></div>
     <div class="rel">
@@ -2089,7 +2125,7 @@ html,body{max-width:100%;}
     <div id="hcReport" style="font-size:12.5px;line-height:1.9;color:var(--txt);margin-top:10px"></div>
   </div>
 
-  <div class="tcard">
+  <div class="tcard fc-card" data-fckey="trip5">
     <h2>⑤ 可视化 · 排量敏感性（井底 ECD vs 排量，含/不含岩屑）</h2>
     <div class="rel">
       <canvas id="tripCv2" width="900" height="320"></canvas>
@@ -2097,7 +2133,7 @@ html,body{max-width:100%;}
     </div>
   </div>
 
-  <div class="tcard">
+  <div class="tcard fc-card" data-fckey="trip6">
     <h2>⑥ 起下钻 / 钻井施工建议 <span class="sub">（满足钻井施工需要的综合结论）</span></h2>
     <div id="tripReport" style="font-size:12.5px;line-height:1.9;color:var(--txt)"></div>
   </div>
@@ -2488,7 +2524,12 @@ html,body{max-width:100%;}
 <!-- ===== ④ 实测标定 · 随钻纠偏（增量模块，复用 ECDKit.calc 做分段反求） ===== -->
 <section class="pane" id="pane-calib">
   <div class="wrap" style="max-width:1180px">
-    <div class="card">
+    <div class="fc-tools">
+      <button type="button" onclick="fcFoldAll('calib',true)" title="收起全部卡片，只留标题">▵ 全部折叠</button>
+      <button type="button" onclick="fcFoldAll('calib',false)" title="展开全部卡片">▿ 全部展开</button>
+      <span style="font-size:11.5px;color:var(--dim)">点卡片标题可单独折叠；状态自动记忆，打印时自动全部展开</span>
+    </div>
+    <div class="card fc-card" data-fckey="calib1">
       <h2>④ 实测标定 · 随钻纠偏 <span class="sub" style="font-weight:400">（把「一次性对 DFG」升级为「随钻分段自适应」—— 让模型沿井深逐步对准现场实测）</span></h2>
       <div class="note">
         <b>为什么需要这个模块：</b>原「与 DFG 差异诊断」是一次性用某个井段/时刻的实测值反求一组 kFric/kSlip，然后<b>全井复用</b>。
@@ -2556,7 +2597,7 @@ html,body{max-width:100%;}
       </div>
     </div>
 
-    <div class="card" id="calibOutCard" style="display:none">
+    <div class="card fc-card" id="calibOutCard" data-fckey="calib2" style="display:none">
       <h2>B · 分段标定结果 <span class="sub" id="calibSummary" style="font-weight:400"></span></h2>
       <div id="calibReport" style="font-size:13px;line-height:1.7"></div>
       <div class="gt" style="margin-top:12px">标定系数 vs 井深（左轴 kFric / kSlip，右轴拟合残差%）</div>
@@ -2578,7 +2619,13 @@ html,body{max-width:100%;}
 
   <div class="tkpis" id="trajKpi"></div>
 
-  <div class="tcard">
+  <div class="fc-tools">
+    <button type="button" onclick="fcFoldAll('traj',true)" title="收起全部卡片，只留标题">▵ 全部折叠</button>
+    <button type="button" onclick="fcFoldAll('traj',false)" title="展开全部卡片">▿ 全部展开</button>
+    <span style="font-size:11.5px;color:var(--dim)">点卡片标题可单独折叠；状态自动记忆，打印时自动全部展开</span>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="traj1">
     <h2>垂直剖面图 <span class="sub">（Vertical Section：横轴 = 垂直剖面长度 VS ｜ 纵轴 = 垂深 TVD，向下增大）</span></h2>
     <div class="rel">
       <canvas id="trajCvVS" height="520"></canvas>
@@ -2593,7 +2640,7 @@ html,body{max-width:100%;}
     <div class="note">💡 取数：电脑<b>鼠标悬停</b>、手机<b>手指按住图内拖动</b>，读取任意井深的 MD / TVD / VS / 井斜 / 方位 / 狗腿度。<b>垂直剖面 VS</b> = 把每一测点的水平位移（N/E）投影到「井口→井底总位移方向」上得到的二维剖面，是定向井设计最常用的投影方式；总位移方向即图中虚线指北标。<b>造斜点 KOP / 最大井斜点</b>已在图上标出。</div>
   </div>
 
-  <div class="tcard">
+  <div class="tcard fc-card" data-fckey="traj2">
     <h2>顶视图 <span class="sub">（Plan View：横轴 = 东 E ｜ 纵轴 = 北 N，井口在原点，等比例）</span></h2>
     <div class="rel">
       <canvas id="trajCvTop" height="520"></canvas>
@@ -2608,7 +2655,7 @@ html,body{max-width:100%;}
     <div class="note">💡 顶视图按<b>真实方位</b>展开（N 上 E 右），等比例显示，可直接看丛式井组相对关系与绕障方向。<b>① 页井斜表无方位列</b>时按方位 0°（正北）投影，顶视图退化为一条直线——仅作示意，精确顶视图请用 ② 页三列轨迹。<span id="trajAziNote"></span></div>
   </div>
 
-  <div class="tcard">
+  <div class="tcard fc-card" data-fckey="traj3">
     <h2>测点明细 <span class="sub" id="trajTblSub"></span></h2>
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
       <button class="reset" onclick="window.__trajRender()" title="按当前输入重算并重绘（改了②页轨迹后点此）">↻ 刷新</button>
@@ -14796,6 +14843,64 @@ renderFigGallery();   /* ⑮ fig1-6 图集缩略图 + 灯箱 */
     secs().forEach(function(t){ setState(t, !!collapse); });
     persist();
     try{ toast(collapse ? '✅ 已折叠全部小节（点小节标题可单独展开）' : '✅ 已展开全部小节'); }catch(e){}
+  };
+})();
+
+
+/* ===== 跨页卡片折叠（③ 起下钻 / ④ 实测标定 / ⑤ 井眼轨迹图）=====
+   点卡片标题展开/收起，默认折起"结果/查阅型"卡片、保留输入型卡片展开。
+   与 ② 页 .collapsed、① 页 .open 相互独立。localStorage 按 key 记忆。 */
+(function(){
+  if(window.__fcFoldBound) return;
+  window.__fcFoldBound = true;
+  var KEY = 'fc_fold_v1';
+  /* 无记忆时默认折起的卡片（data-fckey 前缀）：trip 的结果/图卡全折，输入型（trip 无纯输入卡）保留；
+     这里按"长内容/查阅型"默认折起，减少上下翻页。trip1~6 全是结果图卡 → 默认折 2~6，留 1 概览；
+     traj 三张图默认折 2、3（留垂直剖面概览）；calib 输入卡 calib1 展开、结果卡 calib2 展开（run 后才有）。 */
+  var DEF_FOLDED = ['trip2','trip3','trip4','trip5','trip6','traj2','traj3'];
+  var saved = null;
+  try{ saved = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){ saved = null; }
+
+  function cards(){ return [].slice.call(document.querySelectorAll('.fc-card')); }
+  function head(c){ return c.querySelector(':scope > h2') || c.querySelector('h2'); }
+  function keyOf(c){ return c.getAttribute('data-fckey') || ''; }
+
+  function persist(){
+    var o = {};
+    cards().forEach(function(c){ var k = keyOf(c); if(k) o[k] = c.classList.contains('fc-folded') ? 1 : 0; });
+    try{ localStorage.setItem(KEY, JSON.stringify(o)); }catch(e){}
+  }
+  function setState(c, folded){
+    c.classList.toggle('fc-folded', !!folded);
+    var h = head(c); if(h) h.setAttribute('aria-expanded', folded ? 'false' : 'true');
+  }
+
+  cards().forEach(function(c){
+    var h = head(c); if(!h || c.__fcBound) return;
+    c.__fcBound = true;
+    h.title = '点击展开 / 收起该卡片';
+    h.setAttribute('tabindex','0'); h.setAttribute('role','button');
+    function toggle(){ setState(c, !c.classList.contains('fc-folded')); persist(); }
+    h.addEventListener('click', toggle);
+    h.addEventListener('keydown', function(ev){
+      if(ev.key==='Enter' || ev.key===' ' || ev.key==='Spacebar'){ ev.preventDefault(); toggle(); }
+    });
+    var k = keyOf(c);
+    var initFold = saved ? !!saved[k] : (DEF_FOLDED.indexOf(k) >= 0);
+    setState(c, initFold);
+  });
+
+  /* 按页全折/全开（group: trip|traj|calib；calibOutCard 隐藏时不参与） */
+  window.fcFoldAll = function(group, collapse){
+    var prefix = (group==='calib') ? 'calib' : group;
+    cards().forEach(function(c){
+      var k = keyOf(c);
+      if(k.indexOf(prefix) !== 0) return;
+      if(c.id === 'calibOutCard' && c.style.display === 'none') return; /* 未运行不显示，不折叠 */
+      setState(c, !!collapse);
+    });
+    persist();
+    try{ toast(collapse ? '✅ 已折叠全部卡片（点标题可单独展开）' : '✅ 已展开全部卡片'); }catch(e){}
   };
 })();
 
