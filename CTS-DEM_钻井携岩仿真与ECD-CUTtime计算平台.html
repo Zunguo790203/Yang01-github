@@ -1316,6 +1316,7 @@ html,body{max-width:100%;}
     <button id="tab-trip" onclick="switchTab('trip')">③ 多状态 ECD / 起下钻 / 清洁</button>
     <button id="tab-calib" onclick="switchTab('calib')">④ 实测标定 · 随钻纠偏</button>
     <button id="tab-traj" onclick="switchTab('traj')">⑤ 井眼轨迹图</button>
+    <button id="tab-transport" onclick="switchTab('transport')">⑥ 平板层流携岩（教科书口径）</button>
   </div>
 </div>
 
@@ -2669,6 +2670,87 @@ html,body{max-width:100%;}
 </div>
 </section>
 
+<section class="pane" id="pane-transport">
+<div class="twrap">
+
+  <div class="tbar">
+    <b>⑥ 平板型层流携岩（《钻井液工艺学》教科书口径）</b>
+    <span style="font-size:11.5px;color:var(--dim)">六速流变 → 动塑比/流核 → 临界返速/最小返速 → 携带比 → 悬浮切力，全套解析解</span>
+    <span class="hint" id="transStamp"></span>
+  </div>
+
+  <div class="fc-tools">
+    <button type="button" onclick="fcFoldAll('trans',true)" title="收起全部卡片，只留标题">▵ 全部折叠</button>
+    <button type="button" onclick="fcFoldAll('trans',false)" title="展开全部卡片">▿ 全部展开</button>
+    <span style="font-size:11.5px;color:var(--dim)">点卡片标题可单独折叠；状态自动记忆，打印时自动全部展开</span>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trans1">
+    <h2>输入参数 <span class="sub">（可点「②→⑥」一键带入 ② CTS-DEM 的井径/井深/排量/密度/六速）</span></h2>
+    <div class="toolrow" style="margin-bottom:10px">
+      <button class="btn pri" type="button" onclick="pushCts2Trans()">②→⑥ 带入 CTS-DEM 参数</button>
+      <button class="btn" type="button" onclick="transCalc()">计算</button>
+      <button class="btn" type="button" id="transReset">复位默认</button>
+    </div>
+    <div class="grid g3">
+      <div class="f"><label>井眼直径 D<sub>h</sub> <span class="u">mm</span></label><input id="tr_Dh" value="215.9"></div>
+      <div class="f"><label>钻具外径 D<sub>p</sub> <span class="u">mm</span></label><input id="tr_Dp" value="127"></div>
+      <div class="f"><label>钻头直径 D<sub>b</sub> <span class="u">mm</span></label><input id="tr_Db" value="215.9"></div>
+      <div class="f"><label>排量 Q <span class="u">L/s</span></label><input id="tr_Q" value="30"></div>
+      <div class="f"><label>机械钻速 ROP <span class="u">m/h</span></label><input id="tr_ROP" value="8"></div>
+      <div class="f"><label>井斜 α <span class="u">°</span></label><input id="tr_inc" value="0"></div>
+      <div class="f"><label>泥浆密度 ρ <span class="u">g/cm³</span></label><input id="tr_rho" value="1.8"></div>
+      <div class="f"><label>岩屑密度 ρ<sub>s</sub> <span class="u">g/cm³</span></label><input id="tr_rhos" value="2.6"></div>
+      <div class="f"><label>岩屑当量直径 d<sub>s</sub> <span class="u">mm</span></label><input id="tr_ds" value="6"></div>
+    </div>
+    <div class="gt">六速读数 FANN（θ600/θ300/θ200/θ100/θ6/θ3）</div>
+    <div class="grid g3">
+      <div class="f"><label>θ600</label><input id="tr_t600" value="112"></div>
+      <div class="f"><label>θ300</label><input id="tr_t300" value="72"></div>
+      <div class="f"><label>θ200</label><input id="tr_t200" value="52"></div>
+      <div class="f"><label>θ100</label><input id="tr_t100" value="32"></div>
+      <div class="f"><label>θ6</label><input id="tr_t6" value="9"></div>
+      <div class="f"><label>θ3</label><input id="tr_t3" value="7"></div>
+    </div>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trans2">
+    <h2>① 六速 → 流变参数 <span class="sub">（Bingham 塑粘/动切 + 幂律 n/K + 动塑比）</span></h2>
+    <div class="tblscroll" id="transRheo"></div>
+    <div class="note">PV = (θ600−θ300) mPa·s；YP = θ300 − PV，lb/100ft²（=×0.4788 Pa）；动塑比 = YP/PV（Pa/(mPa·s)）。n = 3.322·lg(θ600/θ300)；K = 0.511·θ300/511ⁿ Pa·sⁿ。</div>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trans3">
+    <h2>② 平板型层流流核 <span class="sub">（等速核直径 d₀，携岩能力的关键）</span></h2>
+    <div class="tblscroll" id="transPlug"></div>
+    <div class="note">流核直径 d₀ = (YP/PV)(D−d) / [24·V + 3·(YP/PV)(D−d)]（m）。动塑比越大 → 流核越宽 → 平板化程度越高 → 低返速即可携岩。工程建议动塑比 ≥ 0.5 Pa/(mPa·s)。</div>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trans4">
+    <h2>③ 临界返速 & 最小返速 <span class="sub">（岩屑开始运移 / 井眼净化所需的最低环空返速）</span></h2>
+    <div class="tblscroll" id="transVcrit"></div>
+    <div class="note">临界返速（倾斜井携砂）v_c = 0.4·[(ρs−ρ)/ρ·ds]^0.667·(1+0.71α+0.55sin2α)/(ρ·μe)^0.333（m/s，α 为弧度）；最小返速（下沉速度 ≤ 返速一半）由岩屑沉降速度 v_s 反解 v_min = 2·v_s。</div>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trans5">
+    <h2>④ 携带比 & 岩屑浓度 <span class="sub">（R_t = (v_a − v_s)/v_a；环空岩屑体积浓度）</span></h2>
+    <div class="tblscroll" id="transCarry"></div>
+    <div class="note">携带比 R_t = (v_a − v_s)/v_a × 100%；垂直井经验 R_t ≥ 50%（即 v_a ≥ 2·v_s）视为合格。环空岩屑浓度 C = ROP·D_b² / [1.667·(D_h²−D_p²)·v_r]。</div>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trans6">
+    <h2>⑤ 岩屑悬浮判据 <span class="sub">（静切力能否托住岩屑）</span></h2>
+    <div class="tblscroll" id="transSuspend"></div>
+    <div class="note">岩屑悬浮需满足：钻井液静切力 ≥ 岩屑单位面积重力，即 τ_g ≥ (ρs−ρ)·g·d_s / 6（球形近似）。动切力 YP 决定停泵悬浮能力，静切力（初切/终切）决定静止稳定性。</div>
+  </div>
+
+  <div class="tcard fc-card" data-fckey="trans7">
+    <h2>综合结论 <span class="sub" id="transGradeSub"></span></h2>
+    <div id="transGrade"></div>
+  </div>
+
+</div>
+</section>
 
 
 <script>/* ============================================================================
@@ -14857,7 +14939,7 @@ renderFigGallery();   /* ⑮ fig1-6 图集缩略图 + 灯箱 */
   /* 无记忆时默认折起的卡片（data-fckey 前缀）：trip 的结果/图卡全折，输入型（trip 无纯输入卡）保留；
      这里按"长内容/查阅型"默认折起，减少上下翻页。trip1~6 全是结果图卡 → 默认折 2~6，留 1 概览；
      traj 三张图默认折 2、3（留垂直剖面概览）；calib 输入卡 calib1 展开、结果卡 calib2 展开（run 后才有）。 */
-  var DEF_FOLDED = ['trip2','trip3','trip4','trip5','trip6','traj2','traj3'];
+  var DEF_FOLDED = ['trip2','trip3','trip4','trip5','trip6','traj2','traj3','trans2','trans3','trans4','trans5','trans6','trans7'];
   var saved = null;
   try{ saved = JSON.parse(localStorage.getItem(KEY) || 'null'); }catch(e){ saved = null; }
 
@@ -14953,6 +15035,233 @@ window.previewFigGallery= previewFigGallery;
 window.renderFigGallery = renderFigGallery;
 window.bindFile         = bindFile;
 window.drawTR           = drawTR;
+
+/* ============================================================================
+ * ⑥ 平板型层流携岩内核（《钻井液工艺学》教科书口径）
+ * ----------------------------------------------------------------------------
+ * 与 ② CTS-DEM（Chien 20B.9 经验滑移法）、③ HC 引擎（H-B + 三资料判据）互补的
+ * 一套"解析解"口径，公式均为公开教材/论文可验证标准式：
+ *
+ *  [1] 六速 → Bingham：PV = θ600−θ300 (mPa·s)；YP = θ300−PV (lb/100ft² = ×0.4788 Pa)
+ *       幂律：n = 3.322·lg(θ600/θ300)；K = 0.511·θ300/511ⁿ (Pa·sⁿ)
+ *       动塑比 = YP(Pa)/PV(mPa·s)，工程建议 ≥ 0.5
+ *  [2] 平板型层流流核（Bingham 环空等速核，论文式 2）：
+ *       d0 = (YP/PV)(D−d) / [24·V + 3·(YP/PV)(D−d)]
+ *       （YP:Pa，PV:Pa·s，D/d:井径/钻具外径 m，V:平均返速 m/s → d0:m）
+ *  [3] 临界环空返速（倾斜井携砂，论文式 3）：
+ *       vc = 0.4·[(ρs−ρ)/ρ·ds]^0.667 · (1+0.71α+0.55·sin2α) / (ρ·μe)^0.333
+ *       （ρ/ρs:g/cm³，ds:mm，α:rad，μe:表观粘度 mPa·s → vc:m/s）
+ *  [4] 最小环空返速（岩屑下沉速度 ≤ 返速一半 → vmin = 2·vs）
+ *  [5] 携带比 Rt = (va−vs)/va ×100%；环空岩屑浓度 C = ROP·Db²/[1.667(Dh²−Dp²)·vr]
+ *  [6] 悬浮判据：τg = (ρs−ρ)·g·ds/6（球形颗粒单位面积重力，Pa）
+ * ----------------------------------------------------------------------------
+ * 注：μe（表观粘度）取 Bingham 有效黏度 μe = μp + τ0·(D−d)/(12·V)（层流环空）。
+ * ========================================================================== */
+(function(){
+  if(window.__transBound) return;
+  window.__transBound = true;
+
+  function num(v,d){ if(v===null||v===undefined||v==='')return d; var x=parseFloat(v); return isFinite(x)?x:d; }
+  function fv(id){ var e=document.getElementById(id); return e?e.value:''; }
+  function el(id){ return document.getElementById(id); }
+  function setTxt(id,html){ var e=el(id); if(e) e.innerHTML=html; }
+
+  var DEF = { Dh:215.9, Dp:127, Db:215.9, Q:30, ROP:8, inc:0, rho:1.8, rhos:2.6, ds:6,
+              t600:112, t300:72, t200:52, t100:32, t6:9, t3:7 };
+
+  function readInp(){
+    return {
+      Dh: num(fv('tr_Dh'),DEF.Dh), Dp: num(fv('tr_Dp'),DEF.Dp), Db: num(fv('tr_Db'),DEF.Db),
+      Q: num(fv('tr_Q'),DEF.Q), ROP: num(fv('tr_ROP'),DEF.ROP), inc: num(fv('tr_inc'),DEF.inc),
+      rho: num(fv('tr_rho'),DEF.rho), rhos: num(fv('tr_rhos'),DEF.rhos), ds: num(fv('tr_ds'),DEF.ds),
+      t600: num(fv('tr_t600'),DEF.t600), t300: num(fv('tr_t300'),DEF.t300),
+      t200: num(fv('tr_t200'),DEF.t200), t100: num(fv('tr_t100'),DEF.t100),
+      t6: num(fv('tr_t6'),DEF.t6), t3: num(fv('tr_t3'),DEF.t3)
+    };
+  }
+
+  /* 通用沉降速度：Bingham 球形（Chien 层流近似，供 [4]/[5] 用） */
+  function settleBingham(rho, rhos, ds_mm, PV_Pas, YP_Pa){
+    var rho_kg = rho*1000, rhos_kg = rhos*1000, d_m = ds_mm/1000, g=9.81;
+    var dRho = Math.max(0, rhos_kg - rho_kg);
+    if(dRho<=0) return 0;
+    /* 层流 Stokes：vs = d²·g·(ρs−ρ)/(18·μ) ；μ 用有效黏度 */
+    var muEff = PV_Pas + (YP_Pa>0? YP_Pa*d_m/6 : 0);
+    if(muEff<=0) muEff = 0.001;
+    return d_m*d_m*g*dRho/(18*muEff);
+  }
+
+  function compute(p){
+    var Dh=p.Dh, Dp=p.Dp, Db=p.Db, Q=p.Q, ROP=p.ROP, inc=p.inc;
+    var rho=p.rho, rhos=p.rhos, ds=p.ds;
+    var t600=p.t600, t300=p.t300, t200=p.t200, t100=p.t100, t6=p.t6, t3=p.t3;
+
+    /* --- [1] 流变 --- */
+    var PV_cp = (t600>0 && t300>0) ? (t600 - t300) : 0;         // mPa·s
+    var YP_lb = (t300>0 && t600>0) ? (t300 - (t600 - t300)) : 0; // lb/100ft²
+    var YP_Pa = YP_lb * 0.478803;
+    var PV_Pas = PV_cp * 0.001;
+    var dpl = (PV_Pas>0) ? YP_Pa/PV_cp : 0;                     // 动塑比 Pa/(mPa·s) —— 用 cp 数值
+    var n = (t600>0 && t300>0 && t600>t300) ? 3.32192809488736*Math.log(t600/t300)/Math.log(10) : 1;
+    var K = (t300>0) ? 0.511*t300/Math.pow(511,n) : 0;          // Pa·sⁿ
+
+    /* --- 环空几何与返速 --- */
+    var A = Math.PI/4*(Dh*Dh - Dp*Dp)/1e6;                      // m²
+    var va = (A>0) ? (Q/1000)/A : 0;                            // m/s
+
+    /* --- [2] 流核直径（Bingham 平板层流） --- */
+    var Dg_m = (Dh-Dp)/1000;                                    // 环空间隙 m
+    var d0 = 0;
+    if(PV_Pas>0 && YP_Pa>0){
+      var dpv = YP_Pa/PV_Pas;                                   // 动塑比 Pa/(Pa·s) = 1/s
+      d0 = (dpv*Dg_m)/(24*va + 3*dpv*Dg_m);                     // m
+    }
+    var plugRatio = (Dg_m>0) ? d0/Dg_m : 0;                     // 流核占比
+
+    /* --- [3] 临界返速（倾斜井携砂，论文式 3） --- */
+    var muEff_cp = PV_cp + (YP_Pa>0 && va>0 ? YP_Pa*Dg_m/(12*va)*1000 : 0); // 表观 mPa·s
+    var muEff = Math.max(muEff_cp, 0.5);
+    var aRad = inc*Math.PI/180;
+    var rhoFac = (rho>0) ? (rhos-rho)/rho*ds : 0;
+    var vc = 0;
+    if(rhoFac>0){
+      vc = 0.4*Math.pow(rhoFac,0.667)*(1+0.71*aRad+0.55*Math.sin(2*aRad))
+           / Math.pow(rho*muEff,0.333);                          // m/s
+    }
+
+    /* --- 沉降速度（球形 Bingham 层流） --- */
+    var vs = settleBingham(rho, rhos, ds, PV_Pas, YP_Pa);
+
+    /* --- [4] 最小返速 = 2·vs --- */
+    var vmin = 2*vs;
+
+    /* --- [5] 携带比 + 浓度 --- */
+    var vr = Math.max(0, va - vs);                              // 岩屑净上升速度
+    var Rt = (va>1e-9) ? 100*vr/va : 0;
+    var Cconc = 0;
+    var denom = (Dh*Dh - Dp*Dp)*vr;
+    if(denom>1e-9) Cconc = 1.667*ROP*Db*Db/denom;               // %（英制系数已折算）
+
+    /* --- [6] 悬浮切力 --- */
+    var tauG = (rhos-rho)*9.81*ds/1000/6;                       // (kg/m³)*(m/s²)*(m)/6 = Pa
+    var YP_ok = (YP_Pa >= tauG);
+
+    /* --- 判据 --- */
+    var flags=[];
+    if(dpl < 0.5) flags.push({lv:'warn', t:'动塑比 '+dpl.toFixed(2)+' < 0.5 Pa/(mPa·s)，平板化程度不足'});
+    if(va < vc) flags.push({lv:'bad', t:'环空返速 '+va.toFixed(2)+' m/s < 临界返速 '+vc.toFixed(2)+' m/s'});
+    if(va < vmin) flags.push({lv:'bad', t:'环空返速 '+va.toFixed(2)+' m/s < 最小返速 '+vmin.toFixed(2)+' m/s'});
+    if(Rt < 50) flags.push({lv:'warn', t:'携带比 '+Rt.toFixed(1)+'% < 50%'});
+    if(!YP_ok) flags.push({lv:'warn', t:'动切力 '+YP_Pa.toFixed(2)+' Pa < 悬浮所需 '+tauG.toFixed(2)+' Pa'});
+
+    var grade='good';
+    if(flags.some(function(f){return f.lv==='bad';})) grade='bad';
+    else if(flags.some(function(f){return f.lv==='warn';})) grade='fair';
+
+    return { PV_cp:PV_cp, PV_Pas:PV_Pas, YP_lb:YP_lb, YP_Pa:YP_Pa, dpl:dpl, n:n, K:K,
+             A:A, va:va, Dg_m:Dg_m, d0:d0, plugRatio:plugRatio, muEff:muEff_cp,
+             vc:vc, vs:vs, vmin:vmin, vr:vr, Rt:Rt, Cconc:Cconc, tauG:tauG,
+             YP_ok:YP_ok, flags:flags, grade:grade };
+  }
+
+  function render(r){
+    function row(k,v,u){ return '<tr><td class="t">'+k+'</td><td>'+v+'</td><td>'+u+'</td></tr>'; }
+    function tbl(rows){ return '<table style="border-collapse:collapse;width:100%;font-size:12px"><tbody>'+rows+'</tbody></table>'; }
+
+    /* ① 流变 */
+    setTxt('transRheo', tbl(
+      row('塑性粘度 PV', r.PV_cp.toFixed(1), 'mPa·s') +
+      row('动切力 YP', r.YP_lb.toFixed(1)+'（'+r.YP_Pa.toFixed(2)+' Pa）', 'lb/100ft²') +
+      row('动塑比 YP/PV', r.dpl.toFixed(3), 'Pa/(mPa·s)') +
+      row('流性指数 n', r.n.toFixed(3), '—') +
+      row('稠度系数 K', r.K.toFixed(4), 'Pa·sⁿ') +
+      row('表观黏度 μ<sub>e</sub>', r.muEff.toFixed(1), 'mPa·s')
+    ));
+
+    /* ② 流核 */
+    setTxt('transPlug', tbl(
+      row('环空间隙 D−d', r.Dg_m.toFixed(4), 'm') +
+      row('流核直径 d₀', r.d0.toFixed(4), 'm') +
+      row('流核占比 d₀/(D−d)', (r.plugRatio*100).toFixed(1), '%') +
+      row('平均环空返速 v<sub>a</sub>', r.va.toFixed(3), 'm/s')
+    ));
+
+    /* ③ 临界/最小返速 */
+    setTxt('transVcrit', tbl(
+      row('临界返速 v<sub>c</sub>', r.vc.toFixed(3), 'm/s') +
+      row('岩屑沉降速度 v<sub>s</sub>', r.vs.toFixed(3), 'm/s') +
+      row('最小返速 v<sub>min</sub>=2v<sub>s</sub>', r.vmin.toFixed(3), 'm/s') +
+      row('实际返速 v<sub>a</sub>', r.va.toFixed(3), 'm/s') +
+      row('返速裕度 v<sub>a</sub>/v<sub>c</sub>', (r.vc>1e-9? (r.va/r.vc).toFixed(2):'∞'), '—')
+    ));
+
+    /* ④ 携带比 */
+    setTxt('transCarry', tbl(
+      row('岩屑净上升速度 v<sub>r</sub>', r.vr.toFixed(3), 'm/s') +
+      row('携带比 R<sub>t</sub>', r.Rt.toFixed(1), '%') +
+      row('环空岩屑浓度 C', r.Cconc.toFixed(2), '%')
+    ));
+
+    /* ⑤ 悬浮 */
+    setTxt('transSuspend', tbl(
+      row('悬浮所需切力 τ<sub>g</sub>', r.tauG.toFixed(3), 'Pa') +
+      row('动切力 YP', r.YP_Pa.toFixed(3), 'Pa') +
+      row('悬浮判据', (r.YP_ok?'✔ YP ≥ τg，可悬浮':'✘ YP < τg，不足以托住岩屑'), '—')
+    ));
+
+    /* ⑥ 结论 */
+    var gtxt = r.grade==='good' ? '合格' : (r.grade==='fair' ? '临界' : '不合格');
+    var gcolor = r.grade==='good' ? '#1a7f37' : (r.grade==='fair' ? '#c07d00' : '#c8332a');
+    var html = '<div style="padding:4px 0"><span style="font-size:18px;font-weight:700;color:'+gcolor+'">'+gtxt+'</span></div>';
+    html += '<ul style="margin:8px 0 0 18px;line-height:1.9;font-size:13px">';
+    if(r.flags.length===0) html += '<li style="color:#1a7f37">各项携岩指标均在推荐范围内</li>';
+    r.flags.forEach(function(f){
+      var c = f.lv==='bad' ? '#c8332a' : '#c07d00';
+      html += '<li style="color:'+c+'">'+f.t+'</li>';
+    });
+    html += '</ul>';
+    setTxt('transGrade', html);
+
+    var st = el('transStamp');
+    if(st) st.textContent = 'PV='+r.PV_cp.toFixed(0)+'mPa·s · YP='+r.YP_Pa.toFixed(1)+'Pa · 动塑比='+r.dpl.toFixed(2)+' · vₐ='+r.va.toFixed(2)+'m/s · Rₜ='+r.Rt.toFixed(0)+'%';
+  }
+
+  window.transCalc = function(){
+    var r = compute(readInp());
+    render(r);
+    return r;
+  };
+  window.__transCompute = compute;
+
+  /* ②→⑥ 带入 CTS-DEM 参数 */
+  window.pushCts2Trans = function(){
+    try{
+      if(window.__ctsReadParams){
+        var p = window.__ctsReadParams();
+        function set(id,v){ if(v!==undefined&&v!==null&&v!=='') el(id).value=v; }
+        set('tr_Dh', p.Dhole); set('tr_Dp', p.dp); set('tr_Db', p.Dhole);
+        set('tr_Q', p.Q); set('tr_rho', p.rho); set('tr_ROP', p.ROP);
+        set('tr_t600', p.t600); set('tr_t300', p.t300); set('tr_t200', p.t200);
+        set('tr_t100', p.t100); set('tr_t6', p.t6); set('tr_t3', p.t3);
+        var rhoc = document.getElementById('rhoc');
+        if(rhoc && rhoc.value) el('tr_rhos').value = rhoc.value;
+      }
+      window.transCalc();
+      try{ toast('已带入 ② CTS-DEM 参数并重算'); }catch(e){}
+    }catch(e){ console.warn('[pushCts2Trans]',e); }
+  };
+
+  /* 复位 */
+  var rb = el('transReset');
+  if(rb) rb.addEventListener('click', function(){
+    Object.keys(DEF).forEach(function(k){
+      var id = 'tr_'+k;
+      var e = el(id); if(e) e.value = DEF[k];
+    });
+    window.transCalc();
+  });
+})();
+
 
 /* ============================================================================
  * ③ 多状态 ECD / 起下钻 / 岩屑运移时间（pane-trip）
@@ -16287,13 +16596,14 @@ try{ runTrip(); }catch(e){ console.warn('[runTrip init]', e); }
 <script>
 /* ================= 标签切换 + 参数互导 ================= */
 function switchTab(which){
-  ['cts','ecd','trip','calib','traj'].forEach(k=>{
+  ['cts','ecd','trip','calib','traj','transport'].forEach(k=>{
     document.getElementById('pane-'+k).classList.toggle('on',k===which);
     document.getElementById('tab-'+k).classList.toggle('on',k===which);
   });
   if(which==='trip'){ try{ window.runTrip && window.runTrip(); }catch(e){ console.warn('[trip]',e); } }
   if(which==='calib'){ try{ window.__calibReady && window.__calibReady(); }catch(e){ console.warn('[calib]',e); } }
   if(which==='traj'){ try{ window.__trajRender && window.__trajRender(); }catch(e){ console.warn('[traj]',e); } }
+  if(which==='transport'){ try{ window.transCalc && window.transCalc(); }catch(e){ console.warn('[transport]',e); } }
 }
 function v(id){ var e=document.getElementById(id); return e?e.value:''; }
 function setv(id,val){ var e=document.getElementById(id); if(e&&val!==undefined&&val!==null&&val!=='') e.value=val; }
