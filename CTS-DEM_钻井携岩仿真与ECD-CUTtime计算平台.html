@@ -1582,7 +1582,7 @@ html,body{max-width:100%;}
       </div>
       <div class="row three">
         <div class="grp"><label>Cut Time 采用引擎</label>
-          <select id="vpEngine"><option value="cfd">CFD-DEM 运移比 TR</option><option value="dfem">DFEM Walker &amp; Mayes</option><option value="nsl">★ N-S 低边耦合（偏心窄缝 H-B 局部流速）</option><option value="ns">N-S 平均（V_ann − V_SLIP）</option></select></div>
+          <select id="vpEngine"><option value="cfd">CFD-DEM 运移比 TR</option><option value="dfem">DFEM Walker &amp; Mayes</option><option value="moore">Moore 滑移（V_ann − V_s,Moore）</option><option value="nsl">★ N-S 低边耦合（偏心窄缝 H-B 局部流速）</option><option value="ns">N-S 平均（V_ann − V_SLIP）</option></select></div>
         <div class="grp"><label>C<sub>conc</sub> 允许上限 <span class="u">%</span></label><input id="cconcMax" value="5"><span class="d">仅 DFEM 模式（⑥）使用</span></div>
         <div class="grp"><label>角度修正（倾斜段）</label>
           <select id="dfemAngOn"><option value="1">启用</option><option value="0">关闭（纯垂直井模型）</option></select></div>
@@ -11717,7 +11717,7 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
   const angOn=(angOnEl?angOnEl.value:'1')==='1';
   const cconcMaxV=val('cconcMax')||5;
   const DF_IN={ t600,t300,t200,t100,t6:val('t6'),t3:val('t3'), cconcMax:cconcMaxV, angOn:angOn };
-  let cutT, cutT_old, cutT_dfem=0, cutT_ns=0, cutT_nsl=0, cutT_nslb=0, cutT_cfd=0;
+  let cutT, cutT_old, cutT_dfem=0, cutT_ns=0, cutT_nsl=0, cutT_nslb=0, cutT_cfd=0, cutT_moore=0;
   let hSum=0, hCnt=0, lockLen=0, totLen=0;   /* 床高/窄缝锁死统计 */
   let lowSideLen=0; const lowSideRuns=[]; let lsRun=null;   /* ★ 低边适用井段（按 BHA+轨迹复合校对） */
   /* ★ 物理下限审计：泥浆自身返速、环空几何 */
@@ -11790,6 +11790,10 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
       }));
       const vpDFEM=Math.max(0.02, Math.min(VannSeg, dfr.vp_mps));
       const vpNS  =Math.max(0.02, Math.min(VannSeg, (Q/A0) - dfr.VSLIP_mps));   // 备用口径：环空平均返速 − 滑移速度
+      /* ★ 引擎D：Moore 滑移（纯 Moore 相关式，非 Chien/Moore 平均）
+         vpMoore = V_ann − V_s,Moore·Finc（Finc=井斜沉降放大，与 DFEM 同口径）。
+         dfr.moore 为 ft/min（vm·60），×0.3048/60 → m/s，再乘角度因子。 */
+      const vpMoore=Math.max(0.02, Math.min(VannSeg, (Q/A0) - (dfr.moore||0)*0.3048/60*(dfr.Finc||1)));
       /* ★ 引擎C：N-S 低边耦合（★ 2026-10-23 修正：两层加权，替代"全井低边速度"）
          ── 原实现的問題 ──
          原式 v_p = TR(θ,V_low,e)·V_low 把「低边窄缝流速」当作**全井所有岩屑**的代表速度，
@@ -11842,13 +11846,14 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
       if(slitLocked) lockLen+=ds;
       /* 低边适用井段改由下方「钻具串精细扫描」统一统计（分辨率=BHA 元件，
          避免轨迹采样 ~30m 漏掉底部短组合/震击器/振荡器；见循环后 lowSideRuns 重建） */
-      const vp=(vpEngine==='dfem')?vpDFEM:((vpEngine==='ns')?vpNS:((vpEngine==='nsl')?vpNSL:vpCFD));  // 主引擎
+      const vp=(vpEngine==='dfem')?vpDFEM:((vpEngine==='moore')?vpMoore:((vpEngine==='ns')?vpNS:((vpEngine==='nsl')?vpNSL:vpCFD)));  // 主引擎
       cutT+=ds/vp;
       cutT_dfem+=ds/vpDFEM;
       cutT_ns+=ds/vpNS;
       cutT_nsl+=ds/vpNSL;
       cutT_nslb+=ds/vpBound;   /* 纯低边边界（f_bed→1 的极限，仅诊断用） */
       cutT_cfd+=ds/vpCFD;
+      cutT_moore+=ds/vpMoore;
       // --- 旧：自由沉降法（保留作对照，用几何平均返速，不含床层折减） ---
       const Vgeo=Q/A0;
       const vsO=Ynum>0.143?0:vsTerm;
@@ -11856,13 +11861,13 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
       cutT_old+=ds/vAxO;
       /* 快照本测段末亚分段的代表值，供 ⑤ 表/剖面显示（积分已逐元件完成，与 lowSideRuns 精细扫描一致） */
       _pv=vpCFD; _pnsl=vpNSL; _lr=lowRatio; _sl=slitLocked; _hs=hStar; _dls=dlsD; _ee=eEff;
-      _dhm=DhL*1000; _blk=(1-Aeff2/A0)*100; _veff=Veff; _vgeo=Vgeo; _trv=TRv; _dfr=dfr; _pvdfem=vpDFEM;
+      _dhm=DhL*1000; _blk=(1-Aeff2/A0)*100; _veff=Veff; _vgeo=Vgeo; _trv=TRv; _dfr=dfr; _pvdfem=vpDFEM; _pvmoore=vpMoore;
       }   /* ← 亚分循环 _bi 结束 */
       const row={md:mdMidAll,inc:tr.incAt(mdMidAll),V:_vgeo,Veff:_veff,TR:_trv,vp:_pv,vpNSL:_pnsl,lowRatio:_lr,slitLocked:_sl,hStar:_hs,dls:_dls,eEff:_ee,dh:_dhm,block:_blk};
       cutRows.push(row);
       if(i%6===0||i===tr.MD.length-1) cutSegs.push(row);
       dfemRows.push({md:mdMidAll,inc:tr.incAt(mdMidAll),raw:_dfr});
-      if(i%6===0||i===tr.MD.length-1) dfemSegs.push({md:mdMidAll,inc:tr.incAt(mdMidAll),raw:_dfr,vp:_pvdfem});
+      if(i%6===0||i===tr.MD.length-1) dfemSegs.push({md:mdMidAll,inc:tr.incAt(mdMidAll),raw:_dfr,vp:_pvdfem,vpM:_pvmoore});
     }   /* ← 测段循环 i 结束 */
     /* ★ 低边适用井段（按 BHA 元件 + 轨迹井斜复合校对，精细分辨率）
        —— 关键修正：原实现在每个轨迹测点(间距~30m)上判定 wLS，会漏掉底部短
@@ -11891,9 +11896,9 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
     }
     if(lsRun) lowSideRuns.push(lsRun);
     lowSideLen=lowSideRuns.reduce((a,r)=>a+r.len,0);
-    cutT/=60; cutT_old/=60; cutT_dfem/=60; cutT_ns/=60; cutT_nsl/=60; cutT_nslb/=60; cutT_cfd/=60;    // s -> min
+    cutT/=60; cutT_old/=60; cutT_dfem/=60; cutT_ns/=60; cutT_nsl/=60; cutT_nslb/=60; cutT_cfd/=60; cutT_moore/=60;    // s -> min
   } else {
-    cutT=cutT_old=cutT_dfem=cutT_ns=cutT_nsl=cutT_nslb=cutT_cfd=Vtot/Q/60;   // 直井退化
+    cutT=cutT_old=cutT_dfem=cutT_ns=cutT_nsl=cutT_nslb=cutT_cfd=cutT_moore=Vtot/Q/60;   // 直井退化
     lagS=Vtot/Q;
   }
   const lagMin=lagS/60;
@@ -11906,6 +11911,7 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
   const lockPct=(totLen>0)?100*lockLen/totLen:0;  /* 低边窄缝被屈服锁死的井段占比 */
   CFD_CUT.cutT=cutT_cfd; CFD_CUT.cutT_old=cutT_old; CFD_CUT.dfem.cutT=cutT_dfem;
   CFD_CUT.ns=cutT_ns; CFD_CUT.nsl=cutT_nsl; CFD_CUT.cfd=cutT_cfd;
+  CFD_CUT.moore=cutT_moore;                    /* ★ Moore 滑移主引擎 Cut Time */
   CFD_CUT.nslb=cutT_nslb;                     /* 纯低边边界（诊断用，仅实际低边井段锁死） */
   CFD_CUT.lowSideRuns=lowSideRuns; CFD_CUT.lowSideLen=lowSideLen;   /* ★ 低边适用井段（按 BHA+轨迹复合校对） */
   CFD_CUT.main=cutT; CFD_CUT.hAvg=hAvg; CFD_CUT.lockPct=lockPct;
@@ -11946,7 +11952,7 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
   document.getElementById('kECDc').textContent=EshowC.toFixed(3);
   document.getElementById('kCut').textContent=cutT.toFixed(1);
   (function(){ var lb=document.getElementById('kCutLbl');
-    var nm=(vpEngine==='dfem')?'DFEM':((vpEngine==='ns')?'N-S(平均)':((vpEngine==='nsl')?'N-S 低边耦合':'CFD-DEM'));
+    var nm=(vpEngine==='dfem')?'DFEM':((vpEngine==='moore')?'Moore':((vpEngine==='ns')?'N-S(平均)':((vpEngine==='nsl')?'N-S 低边耦合':'CFD-DEM')));
     if(lb) lb.textContent='Cut Time · '+nm+' (min)'; })();
   document.getElementById('kTVD').textContent=TVD.toFixed(0);
   document.getElementById('kClos').textContent=tr?tr.closure.toFixed(0):'–';
@@ -12055,7 +12061,7 @@ document.getElementById('ecdNote').innerHTML = window.uout(`滑移速度 vs(${(d
     `合计增量 <b>+${(Ec_lam-Elam).toFixed(4)} SG</b>（原口径仅 ① 一项 +${dEc.toFixed(4)}）。<br>`+
     `<b>结论：</b>井底 ECD ≈ <b>${Elam.toFixed(3)}~${Eturb.toFixed(3)} SG</b>（层流 ${Elam.toFixed(3)} ／ 紊流 ${Eturb.toFixed(3)}，推荐 <b>${Erec.toFixed(3)}</b>）；`+
     `含岩屑（三项）${Ec_lam.toFixed(4)}～${Ec_turb.toFixed(4)} SG；`+
-    `Cut time ≈ <b>${cutT.toFixed(1)} min</b>（${(vpEngine==='nsl')?'★N-S 低边耦合':(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S 平均':'CFD-DEM'))}口径`+
+    `Cut time ≈ <b>${cutT.toFixed(1)} min</b>（${(vpEngine==='nsl')?'★N-S 低边耦合':(vpEngine==='dfem'?'DFEM':(vpEngine==='moore'?'Moore':(vpEngine==='ns'?'N-S 平均':'CFD-DEM')))}口径`+
     `；对照 CFD-DEM ${cutT_cfd.toFixed(1)}／★N-S低边(按井段) ${cutT_nsl.toFixed(1)}／N-S纯低边(按井段) ${cutT_nslb.toFixed(1)}／DFEM ${cutT_dfem.toFixed(1)}／N-S平均 ${cutT_ns.toFixed(1)}／旧自由沉降 ${cutT_old.toFixed(1)} min）。${lagTxt}<br>${ptTxt}`+
     `<br><span style="color:var(--sub)">水力学口径：紊流摩阻 Dodge–Metzner（f=4a/Re<sup>b</sup>，a=(lg n+3.93)/50，b=(1.75−lg n)/7；n=1 退化 Blasius）；流变与密度按<b>逐段垂深温度 T(z)=T<sub>s</sub>+grad·TVD</b> 与 ρ(z) 温压剖面修正（HTHP 手册口径）。</span>`);
 
@@ -12203,7 +12209,7 @@ document.getElementById('bedNote').innerHTML = window.uout(`滑移速度 vs=${vs
     const tsegS=(ROP>0)?LsegV/ROP:NaN;            /* 钻完这 L 米所需时间 s */
     const ratioQ=(AannAvg>0&&Cv>0)?(AbitV/AannAvg/Cv):NaN;
 KPe.innerHTML = window.uout(`<tr><th>指标</th><th>数值</th><th>说明</th></tr>
-       <tr><td>当前主引擎 Cut Time（${(vpEngine==='dfem')?'DFEM':((vpEngine==='ns')?'N-S平均':((vpEngine==='nsl')?'N-S低边耦合':'CFD-DEM'))}）</td><td><b style="color:var(--ok)">${cutT.toFixed(1)} min</b></td><td>下方各口径对照，主引擎由"Cut Time 采用引擎"下拉决定</td></tr>
+       <tr><td>当前主引擎 Cut Time（${(vpEngine==='dfem')?'DFEM':(vpEngine==='moore')?'Moore':(vpEngine==='ns')?'N-S平均':(vpEngine==='nsl')?'N-S低边耦合':'CFD-DEM'}）</td><td><b style="color:var(--ok)">${cutT.toFixed(1)} min</b></td><td>下方各口径对照，主引擎由"Cut Time 采用引擎"下拉决定</td></tr>
        <tr><td>CFD-DEM 重矫正 Cut Time</td><td>${cutT_cfd.toFixed(1)} min</td><td>以 TR(θ,V_loc) 计 v_p=TR·V_loc 逐段积分</td></tr>
        <tr><td>★ N-S 低边耦合 Cut Time</td><td><b style="color:var(--accent)">${cutT_nsl.toFixed(1)} min</b></td><td><b>按井段两层加权</b>：仅「钻具局部填满井眼(BHA/螺杆/扶正器/震击器) ∧ 大斜度」的井段把床层中的<b>锁死份额</b>=h*·wLS 计入窄缝速度 vBed，其余井段走悬浮主流 vSusp（CFD-DEM/N-S 平均口径）。v<sub>low</sub>=lowRatio·V<sub>eff</sub> 为偏心窄缝 H-B 局部流速（同一 Φ 解）</td></tr>
        <tr><td>★ N-S 低边耦合<b>适用井段</b></td><td style="color:var(--accent)">${lowSideLen.toFixed(0)} m / ${MD>0?(100*lowSideLen/MD).toFixed(1):'–'}%</td><td>仅下列井段用低边窄缝模型，其余井段走悬浮主流（其他公式）：<b>${(lowSideRuns&&lowSideRuns.length)?lowSideRuns.map(r=>'MD '+r.md0.toFixed(0)+'–'+r.md1.toFixed(0)+'（'+r.len.toFixed(1)+'m, 权重均 '+(r.wSum/r.len).toFixed(2)+'）').join('；'):'无（全井走悬浮主流）'}</b></td></tr>
@@ -12280,40 +12286,45 @@ document.getElementById('cfdNote').innerHTML = window.uout(`<b>重矫正要点�
     const KPe=document.getElementById('dfemKpiTbl'), TRe=document.getElementById('dfemTbl');
     const titleEl=document.getElementById('engTitle');
     if(!KPe||!TRe) return;
-    const isDfem=(vpEngine==='dfem');
+    const isDfem=(vpEngine==='dfem'); const isMoore=(vpEngine==='moore');
     const subEl=document.getElementById('engSub');
     if(subEl) subEl.textContent=(vpEngine==='dfem')
       ? '沿井深 DFEM 判据（区间 / CTR / C_conc / 评级）'
-      : '沿井深 CFD-DEM 判据（运移比 TR / 颗粒上返 / 床高 / 流型）';
+      : (vpEngine==='moore')
+        ? '沿井深 Moore 判据（区间 / CTR / C_conc / 评级）'
+        : '沿井深 CFD-DEM 判据（运移比 TR / 颗粒上返 / 床高 / 流型）';
     const capEl=document.getElementById('engCap');
-if(capEl) capEl.innerHTML = window.uout((vpEngine==='dfem')
+if(capEl) capEl.innerHTML = window.uout((vpEngine==='dfem'||vpEngine==='moore')
       ? '上图：<b>CTR 岩屑输送比</b>沿井深。经验合格线 <b>CTR ≥ 50%</b>（对应 V<sub>ANN</sub> &gt; 2·V<sub>SLIP</sub>）。'
       : '上图：<b>运移比 TR = v̄<sub>p</sub>/V<sub>loc</sub></b>沿井深。风险线 <b>TR = 0.55</b>（低于它颗粒上返不足局部流速的 55%）；淡红带为 30~60° 中斜危险区。');
 if(titleEl) titleEl.innerHTML = window.uout('⑥ ★ 井眼清洁评估 · 当前引擎：'+
       (isDfem?'<span style="color:var(--accent2)">DFEM Walker &amp; Mayes</span>'
-             :'<span style="color:var(--accent2)">CFD-DEM 运移比 TR</span>'));
+             :(isMoore?'<span style="color:var(--accent2)">Moore 滑移（V_ann − V_s,Moore）</span>'
+                      :'<span style="color:var(--accent2)">CFD-DEM 运移比 TR</span>')));
     /* 三个 Cut Time 口径（两模式均显示，便于直接对照） */
     const cutCmp=
       `<tr><td><b>Cut Time · 当前主引擎</b></td><td><b style="color:var(--accent2)">${cutT.toFixed(1)} min</b></td>
-        <td>${isDfem?'v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（DFEM Walker &amp; Mayes）':(vpEngine==='nsl'?'v_p = TR(θ,V<sub>low</sub>)·V<sub>low</sub>（★N-S 低边耦合）':(vpEngine==='ns'?'v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（N-S 平均）':'v_p = TR · V<sub>loc</sub>（CFD-DEM 运移比）'))}</td></tr>
+        <td>${isDfem?'v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（DFEM Walker &amp; Mayes）':(isMoore?'v_p = V<sub>ANN</sub> − V<sub>s,Moore</sub>（Moore 滑移）':(vpEngine==='nsl'?'v_p = TR(θ,V<sub>low</sub>)·V<sub>low</sub>（★N-S 低边耦合）':(vpEngine==='ns'?'v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（N-S 平均）':'v_p = TR · V<sub>loc</sub>（CFD-DEM 运移比）')))}</td></tr>
        <tr><td>Cut Time · CFD-DEM 口径</td><td>${cutT_cfd.toFixed(1)} min</td><td>v_p = TR·V<sub>loc</sub>（平均颗粒）</td></tr>
        <tr><td>Cut Time · ★N-S 低边耦合口径</td><td>${cutT_nsl.toFixed(1)} min</td><td>两层加权：v_p = f<sub>bed</sub>·TR(θ,V<sub>low</sub>)·V<sub>low</sub> + (1−f<sub>bed</sub>)·TR(θ,V<sub>eff</sub>)·V<sub>eff</sub>，f<sub>bed</sub>=h*（床层面积份额）</td></tr>
        <tr><td>Cut Time · N-S 纯低边边界（诊断）</td><td style="color:var(--sub)">${cutT_nslb.toFixed(1)} min</td><td>仅<b>实际低边井段</b>（BHA/接触元件 ∧ 大斜度）内 f<sub>bed</sub>=1 锁死、其余走悬浮的理论上限，仅评估最坏子群，<b>不是循环周期</b></td></tr>
        <tr><td>Cut Time · DFEM 口径</td><td>${cutT_dfem.toFixed(1)} min</td><td>v_p = V<sub>ANN</sub> − V<sub>SLIP</sub></td></tr>
+       <tr><td>Cut Time · Moore 口径</td><td>${cutT_moore.toFixed(1)} min</td><td>v_p = V<sub>ANN</sub> − V<sub>s,Moore</sub>（Moore 颗粒雷诺数分区相关式）</td></tr>
        <tr><td>Cut Time · N-S 平均口径</td><td>${cutT_ns.toFixed(1)} min</td><td>v_p = V<sub>ANN</sub> − V<sub>SLIP</sub>（N-S 版）</td></tr>
        <tr><td>Cut Time · 旧自由沉降口径</td><td>${cutT_old.toFixed(1)} min</td><td>v_ax = V − v<sub>s</sub>·sinθ</td></tr>
        <tr><td><b>泥浆上返时间 t<sub>lag</sub>（物理下限）</b></td><td><b>${lagMin.toFixed(1)} min</b></td>
          <td>环空容积/Q（=Σds/V<sub>ann</sub>）；<b>Cut Time 必须 ≥ t<sub>lag</sub></b>。各口径 v<sub>p</sub> 已按 ≤V<sub>ann</sub> 钳制，故全部 ≥ t<sub>lag</sub></td></tr>`;
 
-    if(isDfem){
-      /* ================= DFEM 模式 ================= */
+    if(isDfem || isMoore){
+      /* ================= DFEM / Moore 模式（滑移速度法） ================= */
       if(!dfemSegs.length){ KPe.innerHTML=''; TRe.innerHTML='<tr><td>未提供轨迹 → 无法逐段评估。</td></tr>'; return; }
       let w=dfemSegs[0]; dfemSegs.forEach(s=>{ if(s.raw.CTR<w.raw.CTR) w=s; });
       let mC=dfemSegs[0]; dfemSegs.forEach(s=>{ if(s.raw.Cconc>mC.raw.Cconc) mC=s; });
       const r0=w.raw;
-KPe.innerHTML = window.uout(`<tr><th>DFEM 指标（Walker &amp; Mayes）</th><th>数值</th><th>说明 / 判据</th></tr>`+cutCmp+
+      const engLabel = isDfem ? 'DFEM 指标（Walker &amp; Mayes）' : 'Moore 指标（滑移速度法）';
+KPe.innerHTML = window.uout(`<tr><th>${engLabel}</th><th>数值</th><th>说明 / 判据</th></tr>`+cutCmp+
         `<tr><td>V<sub>SLIP</sub> 滑移速度（垂直基准）</td><td>${r0.VSLIP0_mps.toFixed(4)} m/s</td>
-          <td>F<sub>p</sub>=${r0.Fp.toFixed(2)} lb/100ft²，R<sub>c</sub>=${r0.Rc.toFixed(0)}，R<sub>p</sub>=${r0.Rp.toFixed(0)} RPM → <b>${r0.regime==='laminar'?'层流':'紊流'}</b></td></tr>
+          <td>F<sub>p</sub>=${r0.Fp.toFixed(2)} lb/100ft²，R<sub>c</sub>=${r0.Rc.toFixed(0)}，R<sub>p</sub>=${r0.Rp.toFixed(0)} RPM → <b>${r0.regime==='laminar'?'层流':'紊流'}</b>${isMoore?'<br><span style="color:var(--sub)">（Moore 主引擎滑移取 V<sub>s,Moore</sub>=Km·√[d(ρc−ρ)/ρ]，按颗粒雷诺数分区取 Km，非 Chien/Moore 平均）</span>':''}</td></tr>
          <tr><td>V<sub>SLIP</sub> 角度修正后</td><td>${r0.VSLIP_mps.toFixed(4)} m/s</td>
           <td>角度因子 D(${w.inc.toFixed(1)}°)=${r0.angleFactor.toFixed(3)}（${angOn?'启用':'<span class="err">已关闭</span>'}）</td></tr>
          <tr><td>最小 CTR（最危险段）</td><td style="color:var(--accent)"><b>${r0.CTR.toFixed(1)} %</b></td>
@@ -12330,10 +12341,11 @@ KPe.innerHTML = window.uout(`<tr><th>DFEM 指标（Walker &amp; Mayes）</th><th
         const r=s.raw;
         const g=r.grade==='bad'?'<span class="tag turb">差</span>':(r.grade==='fair'?'<span class="tag lam">中</span>':'<span class="tag lam" style="background:#e6f5ea;color:var(--ok)">良</span>');
         const ctrc=r.CTR<50?'color:var(--accent);font-weight:700':(r.CTR<65?'color:var(--warn)':'');
+        const vpv = isMoore ? s.vpM : s.vp;
         h+=`<tr><td>${s.md.toFixed(0)}</td><td>${s.inc.toFixed(1)}</td><td>${r.range.id}</td>
           <td>${r.VANN_mps.toFixed(3)}</td><td>${r.VSLIP_mps.toFixed(3)}</td>
           <td style="${ctrc}">${r.CTR.toFixed(1)}</td><td>${r.Cconc.toFixed(3)}</td>
-          <td>${s.vp.toFixed(3)}</td><td>${g}</td></tr>`;
+          <td>${vpv.toFixed(3)}</td><td>${g}</td></tr>`;
       });
 TRe.innerHTML = window.uout(h);
       let fl='';
@@ -12341,11 +12353,10 @@ TRe.innerHTML = window.uout(h);
         const key=f.lv+'|'+f.t.replace(/[\d.]+/g,'#');
         if(!fl.includes(key)) fl+=`<li><span style="color:${f.lv==='bad'?'var(--accent)':'var(--warn)'}">[${f.lv==='bad'?'须处理':'注意'}]</span> ${f.t}</li>`;
       });});
-document.getElementById('dfemNote').innerHTML = window.uout(`<b>当前引擎：DFEM Walker &amp; Mayes（M-I SWACO DFEM v2.2 · Ch.20B.9）。</b>模型链：F<sub>p</sub>=7.4·[h<sub>C</sub>(8.34G<sub>p</sub>−W)]<sup>0.5</sup>
+document.getElementById('dfemNote').innerHTML = window.uout(`<b>当前引擎：${isDfem?'DFEM Walker &amp; Mayes（M-I SWACO DFEM v2.2 · Ch.20B.9）':'Moore 滑移速度法'}。</b>模型链：F<sub>p</sub>=7.4·[h<sub>C</sub>(8.34G<sub>p</sub>−W)]<sup>0.5</sup>
          → R<sub>c</sub>=109/(d<sub>c</sub>√W) → 解 θ(R<sub>p</sub>)=F<sub>p</sub> 得 R<sub>p</sub> → 层流/紊流分支求 V<sub>SLIP</sub>
          → V<sub>RISE</sub>=V<sub>ANN</sub>−V<sub>SLIP</sub> → CTR=100·V<sub>RISE</sub>/V<sub>ANN</sub>；C<sub>conc</sub>=1.667·ROP·D<sub>b</sub>²/[(D<sub>h</sub>²−D<sub>p</sub>²)·V<sub>RISE</sub>]。<br>
-         <b>角度修正：</b>手册明确该关系式"仅适用垂直段、倾斜段适用性下降"，且 <b>40~60° 因 Boycott 沉降特别麻烦</b>、
-         III 区间（30~60°）造斜段最难清洁（床层可反向滑塌）。故对 V<sub>SLIP</sub> 乘角度因子 D(θ)（峰值 45~50°，量级由 CFD-DEM 内核算子标定）。<br>
+         ${isMoore?'<b>Moore 口径：</b>主引擎 Cut Time 的滑移速度改用纯 Moore 相关式 V<sub>s</sub>=K<sub>m</sub>·√[d·(ρ<sub>c</sub>−ρ)/ρ]，K<sub>m</sub> 按颗粒雷诺数分区（N<sub>Re</sub>&lt;3 → 0.326；&lt;300 → 0.0203；≥300 → 0.0011），区别于 DFEM 的 Chien/Moore 平均。':'<b>角度修正：</b>手册明确该关系式"仅适用垂直段、倾斜段适用性下降"，且 <b>40~60° 因 Boycott 沉降特别麻烦</b>、III 区间（30~60°）造斜段最难清洁（床层可反向滑塌）。故对 V<sub>SLIP</sub> 乘角度因子 D(θ)（峰值 45~50°，量级由 CFD-DEM 内核算子标定）。'}<br>
          <b>需要关注：</b><ul style="margin:5px 0 0 18px;padding:0">${fl||'<li>无</li>'}</ul>`);
       drawEngCurve(true);
     } else {
@@ -12464,7 +12475,7 @@ KPe.innerHTML = window.uout('<tr><th>指标（整井 / 代表段）</th>'
         +'</td><td style="text-align:left;font-size:11px">本次修正：⑪ 流态改由 ③ 的广义雷诺数决定；D<sub>p</sub>≥D<sub>h</sub> 时钳制并告警（旧版会发散到 1e9 MPa 级）</td></tr>'
       +'<tr><td>Cut Time</td>'+cell('s7',cutT_old.toFixed(1)+' min')+cell('ns',cutT_nsl.toFixed(1)+' min')
         +'<td style="text-align:left;font-size:11px">③ 列 = 旧自由沉降口径；⑪ 列 = ★N-S 低边耦合（V<sub>low</sub>=lowRatio·V<sub>eff</sub>，窄缝锁死段占 '+lockPct.toFixed(1)+'%）。本页主引擎 = <b>'
-        +(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S平均':(vpEngine==='nsl'?'N-S低边耦合':'CFD-DEM')))+'</b>（'+cutT.toFixed(1)+' min）</td></tr>'
+        +(vpEngine==='dfem'?'DFEM':(vpEngine==='moore')?'Moore':(vpEngine==='ns'?'N-S平均':(vpEngine==='nsl'?'N-S低边耦合':'CFD-DEM')))+'</b>（'+cutT.toFixed(1)+' min）</td></tr>'
       +'<tr><td colspan="4" style="text-align:left;background:#eef2f7"><b>代表段：本井最不利段 MD '+w.md.toFixed(0)
         +' m ｜ 井斜 '+w.inc.toFixed(1)+'° ｜ 钻具 Ø'+w.od.toFixed(1)+' mm ｜ 环空间隙 '+gapMM.toFixed(1)+' mm（单边）｜ 水力直径 D<sub>e</sub> '+DeMM.toFixed(1)+' mm</b></td></tr>'
       +'<tr><td>Φ 驱动梯度（每米摩擦压降）</td>'+cell('s7',phi7.toFixed(1)+' Pa/m')+cell('ns',r0.phiE.toFixed(1)+' Pa/m')
@@ -12850,7 +12861,7 @@ if(NT) NT.innerHTML = window.uout('<b>封堵施工要点：</b><ul style="margin
     if(g('sCut'))  g('sCut').textContent=cutT.toFixed(1);
 if(g('sECDL')) g('sECDL').innerHTML = window.uout('井底 ECD · 不含岩屑 (SG)<br><span style="font-size:10px;color:var(--sub)">引擎：'+cEng+'</span>');
 if(g('sECDcL'))g('sECDcL').innerHTML = window.uout('井底 ECD · 含岩屑 (SG)<br><span style="font-size:10px;color:var(--sub)">三项合计 +'+(Ec_lam-Elam).toFixed(4)+' SG</span>');
-if(g('sCutL')) g('sCutL').innerHTML = window.uout('Cut Time 循环周期 (min)<br><span style="font-size:10px;color:var(--sub)">主引擎：'+(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S(平均)':(vpEngine==='nsl'?'N-S 低边耦合':'CFD-DEM')))+'</span>');
+if(g('sCutL')) g('sCutL').innerHTML = window.uout('Cut Time 循环周期 (min)<br><span style="font-size:10px;color:var(--sub)">主引擎：'+(vpEngine==='dfem'?'DFEM':(vpEngine==='moore')?'Moore':(vpEngine==='ns'?'N-S(平均)':(vpEngine==='nsl'?'N-S 低边耦合':'CFD-DEM')))+'</span>');
 
     /* 最难运移段（TR 最低） */
     let wTR=null,wBed=null,restMin=0;
@@ -12977,7 +12988,7 @@ if(nt) nt.innerHTML = window.uout('<b>结论：</b>'+adv.join('；')+'。<br>'
     var stamp=document.getElementById('calcStamp');
     if(stamp){
       stamp.textContent='✓ 最近计算 '+p2(now.getHours())+':'+p2(now.getMinutes())+':'+p2(now.getSeconds())
-        +'　·　引擎 '+(vpEngine==='dfem'?'DFEM':(vpEngine==='ns'?'N-S 平均':(vpEngine==='nsl'?'N-S 低边耦合':'CFD-DEM')));
+        +'　·　引擎 '+(vpEngine==='dfem'?'DFEM':(vpEngine==='moore')?'Moore':(vpEngine==='ns'?'N-S 平均':(vpEngine==='nsl'?'N-S 低边耦合':'CFD-DEM')));
       stamp.classList.remove('show'); void stamp.offsetWidth; stamp.classList.add('show');
     }
     if(fromUser){
@@ -16260,7 +16271,7 @@ function runTrip(){
     {n:'自由沉降（旧口径）', v:(window.__ctsGetCut?window.__ctsGetCut().cutT_old:null), tag:'对照'},
     {n:'Moore 滑移（v80）', v:tCutMoore, tag:'③ 本页'}
   ];
-  var mainEngine=(R.vpEngine==='dfem')?'DFEM':((R.vpEngine==='ns')?'N-S 平均':((R.vpEngine==='nsl')?'N-S 低边耦合':'CFD-DEM'));
+  var mainEngine=(R.vpEngine==='dfem')?'DFEM':((R.vpEngine==='moore')?'Moore':((R.vpEngine==='ns')?'N-S 平均':((R.vpEngine==='nsl')?'N-S 低边耦合':'CFD-DEM')));
   var mainCut=R.cutT;
 
   /* ================= 渲染 KPI ================= */
@@ -16439,6 +16450,7 @@ el.innerHTML = window.uout(html);
       if(mainEngine==='DFEM') return c.n==='DFEM Walker & Mayes';
       if(mainEngine==='N-S 平均') return c.n==='N-S 平均';
       if(mainEngine==='N-S 低边耦合') return c.n==='N-S 低边耦合';
+      if(mainEngine==='Moore') return c.n==='Moore 滑移（v80）';
       return c.n==='CFD-DEM 运移比 TR';
     }
     var html='';
