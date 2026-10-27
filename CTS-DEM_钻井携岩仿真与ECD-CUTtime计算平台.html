@@ -11743,7 +11743,7 @@ pv.innerHTML = window.uout('当前为<b>固定值</b>模式：全井 e = <b>'+ec
       _bnd.sort((a,b)=>a-b);
       const mdMidAll=(mdA+mdB)/2;
       /* ★ 各口径逐亚分段积分（所有引擎 / 物理下限 / 床高 / 低边权重均按元件分辨率计算） */
-      let _pv=null,_pnsl=null,_lr=1,_sl=false,_hs=0,_dls=0,_ee=0,_dhm=0,_blk=0,_veff=0,_vgeo=0,_trv=0,_dfr=null,_pvdfem=0;
+      let _pv=null,_pnsl=null,_lr=1,_sl=false,_hs=0,_dls=0,_ee=0,_dhm=0,_blk=0,_veff=0,_vgeo=0,_trv=0,_dfr=null,_pvdfem=0,_pvmoore=0;
       for(let _bi=0;_bi<_bnd.length-1;_bi++){
         const _a=_bnd[_bi],_b=_bnd[_bi+1]; const ds=_b-_a; if(ds<=1e-9) continue;
         const mdMid=(_a+_b)/2;
