@@ -12054,11 +12054,15 @@ calNoteEl.innerHTML = window.uout(`<b>提示：</b>在 ① 卡「井径剖面 CA
       const fN=(calS.narrow||[]).map(r=>`${r.top.toFixed(0)}~${r.bot.toFixed(0)} m（−${(r.ext*100).toFixed(0)}%）`).join('、');
       /* ★ 0 段时说明列给出"最接近阈值的位置与差多少"，避免无信息量的"无" */
       const relW=100*(calS.dMax/Dh-1), relN=100*(1-calS.dMin/Dh);
-      const fW0=`无 —— 全井最大扩径仅 +${relW.toFixed(1)}%（${(calS.dMax*1000).toFixed(1)} mm @ MD ${calS.mdMax.toFixed(0)} m），未达 +5% 阈值`;
-      const fN0=`无 —— 全井最大缩径仅 −${relN.toFixed(1)}%（${(calS.dMin*1000).toFixed(1)} mm @ MD ${calS.mdMin.toFixed(0)} m），未达 −5% 阈值`;
+      const fW0 = relW>0
+        ? `无 —— 全井最大扩径仅 +${relW.toFixed(1)}%（${(calS.dMax*1000).toFixed(1)} mm @ MD ${calS.mdMax.toFixed(0)} m），未达 +5% 阈值`
+        : `无 —— 全井井径均不大于钻头直径（最大 ${(calS.dMax*1000).toFixed(1)} mm @ MD ${calS.mdMax.toFixed(0)} m），无扩径`;
+      const fN0 = relN>0
+        ? `无 —— 全井最大缩径仅 −${relN.toFixed(1)}%（${(calS.dMin*1000).toFixed(1)} mm @ MD ${calS.mdMin.toFixed(0)} m），未达 −5% 阈值`
+        : `无 —— 全井井径均大于钻头直径（最小 ${(calS.dMin*1000).toFixed(1)} mm @ MD ${calS.mdMin.toFixed(0)} m，相对钻头 +${(-relN).toFixed(1)}%），无缩径`;
 calTblEl.innerHTML = window.uout(`<tr><th>井径剖面指标</th><th>数值</th><th>说明 / 判据</th></tr>
         <tr><td>剖面口径</td><td>已启用（${calPts.length} 个实测点，线性插值）</td><td>相邻点间线性插值；剖面两端点以外取端点值</td></tr>
-        <tr><td>标称井径 D<sub>h</sub></td><td>${DhMM0} mm</td><td>① 卡钻头/设计井径，作为扩径/缩径判据基准</td></tr>
+        <tr><td>钻头直径（标称井径）D<sub>h</sub></td><td>${DhMM0} mm</td><td>即 ① 卡 D<sub>hole</sub>（钻头/设计井径）——<b>扩径/缩径正是相对钻头直径判读</b>：扩径率=（井径−钻头直径）/钻头直径</td></tr>
         <tr><td>最小 / 最大井径</td><td style="color:var(--accent)"><b>${(calS.dMin*1000).toFixed(1)}</b> / ${(calS.dMax*1000).toFixed(1)} mm</td><td>缩径比 −${(100*(1-calS.dMin/Dh)).toFixed(1)}%；扩径比 +${(100*(calS.dMax/Dh-1)).toFixed(1)}%</td></tr>
         <tr><td>井段长度加权平均井径</td><td>${(calS.dAvg*1000).toFixed(1)} mm</td><td>相对标称 ${((calS.dAvg/Dh-1)*100>=0?'+':'')}${((calS.dAvg/Dh-1)*100).toFixed(1)}% ｜ 全井平均环空容积已按此逐段计入</td></tr>
         <tr><td>扩径段（大肚子 &gt;+5%）</td><td style="color:var(--accent)">${calS.wide.length} 段</td><td>${fW||fW0}</td></tr>
