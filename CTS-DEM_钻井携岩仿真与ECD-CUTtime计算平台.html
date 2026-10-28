@@ -2741,7 +2741,7 @@ html,body{max-width:100%;}
   <div class="tcard fc-card" data-fckey="trans6">
     <h2>⑤ 岩屑悬浮判据 <span class="sub">（静切力能否托住岩屑）</span></h2>
     <div class="tblscroll" id="transSuspend"></div>
-    <div class="note">岩屑悬浮需满足：钻井液静切力 ≥ 岩屑单位面积重力，即 τ_g ≥ (ρs−ρ)·g·d_s / 6（球形近似）。动切力 YP 决定停泵悬浮能力，静切力（初切/终切）决定静止稳定性。</div>
+    <div class="note">岩屑悬浮需满足：钻井液静切力 ≥ 岩屑单位面积重力，即 τ_g ≥ (ρs−ρ)·g·d_s / 6（球形近似）。本卡按教材口径用<b>动切力 YP</b> 作保守下限校核（停泵后凝胶结构通常还会继续增强，YP 是其下限）；<b>更准确的现场校核用静切力 Gel（10s/10min/30min）随时间的三档判据——见 ② 页「停泵静态悬浮能力」行</b>，两处结论应一致。</div>
   </div>
 
   <div class="tcard fc-card" data-fckey="trans7">
@@ -15207,8 +15207,13 @@ window.drawTR           = drawTR;
     var denom = (Dh*Dh - Dp*Dp)*vr;
     if(denom>1e-9) Cconc = 1.667*ROP*Db*Db/denom;               // %（英制系数已折算）
 
-    /* --- [6] 悬浮切力 --- */
-    var tauG = (rhos-rho)*9.81*ds/1000/6;                       // (kg/m³)*(m/s²)*(m)/6 = Pa
+    /* --- [6] 悬浮切力 ---
+       ★★ 2026-10-28 修复单位 bug：ρ 用 g/cm³、ds 用 mm 代入时，
+          Δρ×1000 → kg/m³、ds/1000 → m，两个 1000 相互抵消，
+          正确式 τg = (ρs−ρ)·9.81·ds/6。原实现多除一个 1000，
+          τg 被压小 1000 倍 → "YP ≥ τg 可悬浮"几乎恒成立（判据失效）。
+          例：Δρ=1.0、ds=16mm → τg=26.2 Pa（原 bug 给 0.026 Pa）。 */
+    var tauG = (rhos-rho)*9.81*ds/6;                            // (g/cm³×1000→kg/m³)·(mm/1000→m)·(m/s²)/6 = Pa
     var YP_ok = (YP_Pa >= tauG);
 
     /* --- 判据 --- */
