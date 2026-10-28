@@ -2956,27 +2956,36 @@ html,body{max-width:100%;}
    * 输出为 ft/s，调用处 ×60 → ft/min。
    * ------------------------------------------------------------------------- */
 
-  /* Moore（★ 单位修正版）：现场形态，颗粒雷诺数分区
-     V_s = K_m · sqrt( d·(ρc−ρ)/ρ )，K_m 随颗粒雷诺数分区。
-     ★ 该相关式的标定口径是 d 用 **in**、ρ 用 ppg，结果为 ft/s。
-       原实现写成 sqrt((dIn/12)·Δρ)，把 d 换成 ft 代进 in 口径的式子，
-       滑落速度被系统性压低 √12 ≈ 3.46 倍。此处改回 d[in]。 */
+  /* Moore（★ Bourgoyne et al. 1986 标准三分支版，v 单位 ft/s）：
+     N_Re = 928·ρ_f·v_s·d_s/μ_a（ρ 用 ppg、d 用 in、μ_a 用 cP，928 常数对应 v 用 ft/s）。
+     N_Re 依赖 v_s 自身 → 用阻尼不动点迭代到自洽：
+       N_Re > 300（紊流，C_d≈1.5）： v_s = 1.54·√(d_s·(ρs−ρf)/ρf)
+       3 < N_Re ≤ 300（过渡）：     v_s = 2.90·d_s·(ρs−ρf)^0.667/(ρf^0.333·μ_a^0.333)
+       N_Re ≤ 3（层流，C_d=40/N_Re）：v_s = 82.87·d_s²·(ρs−ρf)/μ_a
+     ★ 原实现写成 Km·√(d·Δρ/ρ)、Km 取 0.326/0.0203/0.0011 —— 任何单位制下都
+       无法与标准式对应（紊流支比 1.54 小 1400 倍，层流/过渡支丢失粘度项），
+       滑落速度被压成 ≈0，使 Moore 口径 Cut Time 恒等于泥浆上返时间 t_lag。
+       来源依据：BSEE HYDMOD3 §2.3.1、SPE-223706-PA 附录 A、Bourgoyne
+       "Applied Drilling Engineering"（Moore 1974）—— 三处公式完全一致。 */
   function slipMoore(rhoPPG, rhocPPG, dIn, muPa) {
     var drho = rhocPPG - rhoPPG;
     if (!(drho > 0) || !(dIn > 0) || !(rhoPPG > 0)) return 0;
     var muC = Math.max(muPa || 1, 1e-3);              // cP
-    var muLB = muC * 6.7197e-4;                       // lb/(ft·s)
-    var dFt = dIn / 12;
-    var vs = dFt * dFt * (drho * 62.4) / (18 * muLB); // ft/s（Stokes 起步，仅用于取雷诺数）
-    if (!isFinite(vs) || vs <= 0) vs = 0.01;
-    var Nre = 928 * rhoPPG * dIn * vs / muC;          // 颗粒雷诺数（★ 常数 928 对应 d 用 in）
-    var Km;
-    if (Nre < 3) Km = 0.326;                          // 层流 / Stokes 修正
-    else if (Nre < 300) Km = 0.0203;                  // 过渡
-    else Km = 0.0011;                                 // 紊流
-    var v = Km * Math.sqrt(dIn * drho / rhoPPG);      // ★ d 用 in（与相关式标定口径一致）
+    var vTur = 1.54 * Math.sqrt(dIn * drho / rhoPPG); // ft/s（紊流支，作迭代初值）
+    if (!isFinite(vTur) || vTur <= 0) return 0;
+    var v = vTur, vn = vTur, i, Nre;
+    for (i = 0; i < 80; i++) {
+      Nre = 928 * rhoPPG * v * dIn / muC;             // ★ v 用 ft/s
+      if (Nre <= 3)      vn = 82.87 * dIn * dIn * drho / muC;
+      else if (Nre <= 300) vn = 2.90 * dIn * Math.pow(drho, 0.667)
+                              / (Math.pow(rhoPPG, 0.333) * Math.pow(muC, 0.333));
+      else               vn = vTur;
+      if (!isFinite(vn) || vn < 0) { vn = 0; break; }
+      if (Math.abs(vn - v) < 1e-10) { v = vn; break; }
+      v = 0.5 * v + 0.5 * vn;                         // 阻尼，防分支边界振荡
+    }
     if (!isFinite(v) || v < 0) v = 0;
-    return v;
+    return v;                                         // ft/s（调用处 ×60 → ft/min）
   }
 
   /* Chien（★ 单位修正版）：带屈服应力泥浆中的颗粒沉降。
@@ -10715,6 +10724,49 @@ function drawCavChart(res) {
     var VSLIP_ftmin = VSLIP0_ftmin * Dang;
     var VSLIP_mps = VSLIP_ftmin * U.FTMIN2MPS;
 
+    /* --- ④′ Moore 滑移（Bourgoyne et al. 1986 标准三分支 + N_Re 迭代自洽）
+       ★★ 2026-10-28 修复：本函数此前**不返回 moore/Finc 字段**，② 页主循环
+          `(dfr.moore||0)` 恒取 0 → vpMoore≡V_ann → Moore 口径 Cut Time 恒等于
+          泥浆上返时间 t_lag（用户截图两值同为 78.0 min 的根因）。
+       μa（等效牛顿粘度，cP）：环空壁面剪切率处 τ_w/γ_w，
+         γ_w = ((2+1/n)/0.0208)·Va[ft/s]/gap[in]（Bourgoyne/BSEE Moore μa 定义，
+               0.0208 常数对应 Va 用 ft/s；BSEE HYDMOD3 §2.3.1 eq.2-36 同构）
+         μa  = 478.8·θ300·γ_w^(n−1)/511^n  （θ 刻度 ≈ τ[lbf/100ft²] @511 s⁻¹）
+       三分支（v 单位 ft/s，d=in，ρ=ppg；N_Re=928·ρ·v·d/μa 依赖 v，迭代）：
+         N_Re>300:    v=1.54·√(d·Δρ/ρ)（C_d≈1.5）
+         3<N_Re≤300:  v=2.90·d·Δρ^0.667/(ρ^0.333·μa^0.333)
+         N_Re≤3:      v=82.87·d²·Δρ/μa （C_d=40/N_Re）
+       输出 mooreFtmin 为**垂直基准**（未乘角度因子），主循环乘 Finc=Dang。 */
+    var mooreFtmin = 0;
+    (function () {
+      var tv600 = num(o.t600, 0), tv300 = num(o.t300, 0);
+      if (!(tv600 > tv300 && tv300 > 0) || !(W > 0) || !(dc_in > 0) || !(Aeff_in2 > 0)) return;
+      var nPL = 3.32 * Math.log10(tv600 / tv300);
+      if (!(nPL > 0.05 && nPL < 0.95)) return;                 /* 幂律指数超界 → 不算 */
+      var gapIn = Dh_in - Dp_in;
+      if (!(gapIn > 0)) return;
+      var vaFts = VANN_ftmin / 60;
+      var gam = ((2 + 1 / nPL) / 0.0208) * vaFts / gapIn;      /* s⁻¹ */
+      var muA = 478.8 * tv300 * Math.pow(gam, nPL - 1) / Math.pow(511, nPL);
+      if (!(muA > 0)) return;
+      var drhoPPG = 8.34 * Gp - W;                             /* 岩屑−泥浆，ppg */
+      if (!(drhoPPG > 0)) return;
+      var vTurb = 1.54 * Math.sqrt(dc_in * drhoPPG / W);       /* ft/s 迭代初值 */
+      if (!isFinite(vTurb) || vTurb <= 0) return;
+      var v = vTurb, vn = vTurb, k, Nre;
+      for (k = 0; k < 80; k++) {
+        Nre = 928 * W * v * dc_in / muA;
+        if (Nre <= 3)          vn = 82.87 * dc_in * dc_in * drhoPPG / muA;
+        else if (Nre <= 300)   vn = 2.90 * dc_in * Math.pow(drhoPPG, 0.667)
+                                / (Math.pow(W, 0.333) * Math.pow(muA, 0.333));
+        else                   vn = vTurb;
+        if (!isFinite(vn) || vn < 0) { vn = 0; break; }
+        if (Math.abs(vn - v) < 1e-10) { v = vn; break; }
+        v = 0.5 * v + 0.5 * vn;                                /* 阻尼防分支振荡 */
+      }
+      if (isFinite(v) && v > 0) mooreFtmin = v * 60;           /* ft/s → ft/min */
+    })();
+
     /* --- ⑥ 上升速度 / 输送比 (20B.9) --- */
     var VRISE_ftmin = VANN_ftmin - VSLIP_ftmin;
     var VRISE_mps = VRISE_ftmin * U.FTMIN2MPS;
@@ -10770,7 +10822,9 @@ function drawCavChart(res) {
       VANNCRIT_ftmin: VANNCRIT_ftmin, VANNCRIT_mps: VANNCRIT_mps, marginAV: marginAV,
       LSRYP: LSRYP, range: rg, flags: flags, grade: grade,
       /* 供 Cut Time 使用：颗粒净上返速度 */
-      vp_mps: VRISE_mps
+      vp_mps: VRISE_mps,
+      /* ★ Moore 滑移（垂直基准 ft/min）+ 角度因子 —— ② 页主循环 Moore 口径用 */
+      moore: mooreFtmin, Finc: Dang
     };
   }
 
@@ -12324,7 +12378,7 @@ if(titleEl) titleEl.innerHTML = window.uout('⑥ ★ 井眼清洁评估 · 当�
       const engLabel = isDfem ? 'DFEM 指标（Walker &amp; Mayes）' : 'Moore 指标（滑移速度法）';
 KPe.innerHTML = window.uout(`<tr><th>${engLabel}</th><th>数值</th><th>说明 / 判据</th></tr>`+cutCmp+
         `<tr><td>V<sub>SLIP</sub> 滑移速度（垂直基准）</td><td>${r0.VSLIP0_mps.toFixed(4)} m/s</td>
-          <td>F<sub>p</sub>=${r0.Fp.toFixed(2)} lb/100ft²，R<sub>c</sub>=${r0.Rc.toFixed(0)}，R<sub>p</sub>=${r0.Rp.toFixed(0)} RPM → <b>${r0.regime==='laminar'?'层流':'紊流'}</b>${isMoore?'<br><span style="color:var(--sub)">（Moore 主引擎滑移取 V<sub>s,Moore</sub>=Km·√[d(ρc−ρ)/ρ]，按颗粒雷诺数分区取 Km，非 Chien/Moore 平均）</span>':''}</td></tr>
+          <td>F<sub>p</sub>=${r0.Fp.toFixed(2)} lb/100ft²，R<sub>c</sub>=${r0.Rc.toFixed(0)}，R<sub>p</sub>=${r0.Rp.toFixed(0)} RPM → <b>${r0.regime==='laminar'?'层流':'紊流'}</b>${isMoore?'<br><span style="color:var(--sub)">（Moore 主引擎滑移取 Bourgoyne 标准三分支：紊流 1.54·√(d·Δρ/ρ)、过渡 2.90·d·Δρ<sup>0.667</sup>/(ρ<sup>0.333</sup>·μ<sub>a</sub><sup>0.333</sup>)、层流 82.87·d²·Δρ/μ<sub>a</sub>，N<sub>Re</sub>=928ρ·v·d/μ<sub>a</sub> 迭代自洽）</span>':''}</td></tr>
          <tr><td>V<sub>SLIP</sub> 角度修正后</td><td>${r0.VSLIP_mps.toFixed(4)} m/s</td>
           <td>角度因子 D(${w.inc.toFixed(1)}°)=${r0.angleFactor.toFixed(3)}（${angOn?'启用':'<span class="err">已关闭</span>'}）</td></tr>
          <tr><td>最小 CTR（最危险段）</td><td style="color:var(--accent)"><b>${r0.CTR.toFixed(1)} %</b></td>
