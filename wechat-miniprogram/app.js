@@ -7,19 +7,21 @@ const defaultState = {
   pipeOd: '127',
   pipeId: '108.6',
   mudDensity: '1.75',
-  flow: '24.1',
-  rpm: '64',
-  ropMinPerM: '1.90',
-  standpipe: '37.43',
-  mudTemp: '65',
-  bottomTemp: '117',
+  funnelVisc: '82',
   pv: '49',
   yp: '12',
+  gel10: '5.5',
+  gel30: '12',
+  flow: '24.1',
+  rpm: '64',
+  rop: '1.90',
+  standpipe: '37.43',
+  bottomTemp: '117',
   cutSize: '10',
   cutDensity: '2.65',
   source: '录井图片（待核验）',
-  savedAt: '',
-  warnings: []
+  notes: '需要现场确认井深、井身段、测斜数据和温压修正模型。',
+  savedAt: ''
 };
 
 App({
@@ -28,13 +30,12 @@ App({
     prototype: true,
     state: defaultState,
     results: {
-      ecd: '--',
       annularVelocity: '--',
       transportIndex: '--',
-      risk: '待计算'
+      ecdStatus: '待计算',
+      riskState: '待判定'
     }
   },
-
   onLaunch() {
     const saved = wx.getStorageSync('drillingFieldSnapshot');
     if (saved) {

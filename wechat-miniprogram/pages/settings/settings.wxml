@@ -1,9 +1,10 @@
 <view class="page">
   <view class="card">
     <view class="title">设置</view>
-    <view class="row">原型模式：开启</view>
+    <view class="row">模式：原型版</view>
     <view class="row">缓存：本地微信存储</view>
-    <view class="row">目标：现场输入与模型准备</view>
-    <view class="row">提醒：ECD、井控、压井及井漏模块需现场审核后再做工程使用。</view>
+    <view class="row">数据来源：录井图片、现场工况、实验室数据（需人工确认）</view>
+    <view class="row">工程使用前提：现场审核 + 正式井底压力/井控模型校验</view>
+    <view class="row">风险提醒：ECD、井控、压井、井漏和起下钻都需要有资质人员复核才可作为施工依据</view>
   </view>
 </view>

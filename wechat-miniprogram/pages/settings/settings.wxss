@@ -1,4 +1,4 @@
 .page { padding: 24rpx; }
-.card { background: #fff; border: 1rpx solid #e1eaf5; border-radius: 20rpx; padding: 24rpx; box-shadow: 0 10rpx 26rpx rgba(15,23,42,.05); }
-.title { color: #0d2b4f; font-size: 34rpx; font-weight: 700; margin-bottom: 20rpx; }
-.row { margin-bottom: 14rpx; color: #3c4b5c; font-size: 24rpx; line-height: 1.6; }
+.card { padding: 24rpx; border-radius: 20rpx; background: #fff; border: 1rpx solid #dfe8f3; box-shadow: 0 10rpx 26rpx rgba(15,23,42,.05); }
+.title { color: #0d2b4f; font-size: 34rpx; font-weight: 700; margin-bottom: 16rpx; }
+.row { margin-bottom: 12rpx; color: #3c4b5c; line-height: 1.7; font-size: 24rpx; }

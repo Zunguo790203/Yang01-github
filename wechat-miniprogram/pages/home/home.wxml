@@ -1,83 +1,71 @@
 <view class="page">
   <view class="hero">
     <view class="hero-title">钻井现场辅助</view>
-    <view class="hero-sub">第二版：现场录入、聚合校验与结果概览</view>
-    <view class="hero-tag">离线原型 · 不做现场处置指令</view>
+    <view class="hero-sub">第三版：现场参数、模型状态、基础结果概览</view>
+    <view class="hero-tag">离线原型 · 不做现场操作指令</view>
   </view>
 
-  <view class="tabs">
-    <view class="tab {{activeTab === '现场' ? 'selected' : ''}}" bindtap="chooseTab" data-tab="现场">现场</view>
-    <view class="tab {{activeTab === '计算' ? 'selected' : ''}}" bindtap="chooseTab" data-tab="计算">计算</view>
-    <view class="tab {{activeTab === '记录' ? 'selected' : ''}}" bindtap="chooseTab" data-tab="记录">说明</view>
+  <view class="panel summary-panel">
+    <view class="summary-row">
+      <text>井名</text>
+      <text>{{form.wellName}}</text>
+    </view>
+    <view class="summary-row">
+      <text>井深</text>
+      <text>{{form.depth}} m</text>
+    </view>
+    <view class="summary-row">
+      <text>风险状态</text>
+      <text>{{riskState}}</text>
+    </view>
   </view>
 
-  <block wx:if="{{activeTab === '现场'}}">
-    <view class="card">
-      <view class="section-title">井况快照</view>
-      <view class="field"><text>井名</text><input value="{{form.wellName}}" data-key="wellName" bindinput="onInput" /></view>
-      <view class="field"><text>当前井深（m）</text><input value="{{form.depth}}" data-key="depth" bindinput="onInput" /></view>
-      <view class="field"><text>套管下深（m）</text><input value="{{form.casingDepth}}" data-key="casingDepth" bindinput="onInput" /></view>
-      <view class="field"><text>套管内径（mm）</text><input value="{{form.casingId}}" data-key="casingId" bindinput="onInput" /></view>
-      <view class="field"><text>裸眼井径（mm）</text><input value="{{form.openHoleId}}" data-key="openHoleId" bindinput="onInput" /></view>
-      <view class="field"><text>钻柱外径（mm）</text><input value="{{form.pipeOd}}" data-key="pipeOd" bindinput="onInput" /></view>
-      <view class="field"><text>钻柱内径（mm）</text><input value="{{form.pipeId}}" data-key="pipeId" bindinput="onInput" /></view>
-      <view class="field"><text>钻井液密度（g/cm³）</text><input value="{{form.mudDensity}}" data-key="mudDensity" bindinput="onInput" /></view>
-      <view class="field"><text>排量（L/s）</text><input value="{{form.flow}}" data-key="flow" bindinput="onInput" /></view>
-      <view class="field"><text>转速（rpm）</text><input value="{{form.rpm}}" data-key="rpm" bindinput="onInput" /></view>
-      <view class="field"><text>钻时（min/m）</text><input value="{{form.ropMinPerM}}" data-key="ropMinPerM" bindinput="onInput" /></view>
-      <view class="field"><text>立压（MPa）</text><input value="{{form.standpipe}}" data-key="standpipe" bindinput="onInput" /></view>
-      <view class="field"><text>泥浆测试温度（℃）</text><input value="{{form.mudTemp}}" data-key="mudTemp" bindinput="onInput" /></view>
-      <view class="field"><text>井底循环温度（℃）</text><input value="{{form.bottomTemp}}" data-key="bottomTemp" bindinput="onInput" /></view>
-      <view class="field"><text>PV（mPa·s）</text><input value="{{form.pv}}" data-key="pv" bindinput="onInput" /></view>
-      <view class="field"><text>YP（Pa）</text><input value="{{form.yp}}" data-key="yp" bindinput="onInput" /></view>
-      <view class="field"><text>岩屑粒径（mm）</text><input value="{{form.cutSize}}" data-key="cutSize" bindinput="onInput" /></view>
-      <view class="field"><text>岩屑密度（g/cm³）</text><input value="{{form.cutDensity}}" data-key="cutDensity" bindinput="onInput" /></view>
-      <view class="field"><text>数据来源</text><input value="{{form.source}}" data-key="source" bindinput="onInput" /></view>
-      <view class="actions">
-        <button class="primary" bindtap="calculate">校验并分析</button>
-        <button class="secondary" bindtap="saveSnapshot">保存快照</button>
-        <button class="secondary" bindtap="restoreSample">恢复样例</button>
-      </view>
-      <view wx:if="{{savedAt}}" class="save-time">本地保存时间：{{savedAt}}</view>
-    </view>
-  </block>
+  <view class="section-header">井身结构与泥浆基础</view>
+  <view class="card">
+    <view class="field"><text>当前井深（m）</text><input value="{{form.depth}}" data-key="depth" bindinput="onInput" /></view>
+    <view class="field"><text>套管下深（m）</text><input value="{{form.casingDepth}}" data-key="casingDepth" bindinput="onInput" /></view>
+    <view class="field"><text>套管内径（mm）</text><input value="{{form.casingId}}" data-key="casingId" bindinput="onInput" /></view>
+    <view class="field"><text>裸眼井径（mm）</text><input value="{{form.openHoleId}}" data-key="openHoleId" bindinput="onInput" /></view>
+    <view class="field"><text>钻柱外径（mm）</text><input value="{{form.pipeOd}}" data-key="pipeOd" bindinput="onInput" /></view>
+    <view class="field"><text>钻柱内径（mm）</text><input value="{{form.pipeId}}" data-key="pipeId" bindinput="onInput" /></view>
+    <view class="field"><text>泥浆密度（g/cm³）</text><input value="{{form.mudDensity}}" data-key="mudDensity" bindinput="onInput" /></view>
+    <view class="field"><text>漏斗黏度（s）</text><input value="{{form.funnelVisc}}" data-key="funnelVisc" bindinput="onInput" /></view>
+    <view class="field"><text>PV（mPa·s）</text><input value="{{form.pv}}" data-key="pv" bindinput="onInput" /></view>
+    <view class="field"><text>YP（Pa）</text><input value="{{form.yp}}" data-key="yp" bindinput="onInput" /></view>
+    <view class="field"><text>初切（Pa）</text><input value="{{form.gel10}}" data-key="gel10" bindinput="onInput" /></view>
+    <view class="field"><text>终切（Pa）</text><input value="{{form.gel30}}" data-key="gel30" bindinput="onInput" /></view>
+  </view>
 
-  <block wx:if="{{activeTab === '计算'}}">
-    <view class="card">
-      <view class="section-title">计算结果概览</view>
-      <view class="result-grid">
-        <view class="result-item">
-          <text class="label">名义环空流速</text>
-          <text class="value">{{annularVelocity}}</text>
-        </view>
-        <view class="result-item">
-          <text class="label">基础校验状态</text>
-          <text class="value small">{{validation}}</text>
-        </view>
-        <view class="result-item">
-          <text class="label">ECD状态</text>
-          <text class="value small">{{ecdStatus}}</text>
-        </view>
-        <view class="result-item">
-          <text class="label">井眼清洁/岩屑运移</text>
-          <text class="value small">{{cleanStatus}}</text>
-        </view>
-      </view>
+  <view class="section-header">工况参数</view>
+  <view class="card">
+    <view class="field"><text>排量（L/s）</text><input value="{{form.flow}}" data-key="flow" bindinput="onInput" /></view>
+    <view class="field"><text>转速（rpm）</text><input value="{{form.rpm}}" data-key="rpm" bindinput="onInput" /></view>
+    <view class="field"><text>钻速（min/m）</text><input value="{{form.rop}}" data-key="rop" bindinput="onInput" /></view>
+    <view class="field"><text>立压（MPa）</text><input value="{{form.standpipe}}" data-key="standpipe" bindinput="onInput" /></view>
+    <view class="field"><text>井底温度（℃）</text><input value="{{form.bottomTemp}}" data-key="bottomTemp" bindinput="onInput" /></view>
+    <view class="field"><text>岩屑粒径（mm）</text><input value="{{form.cutSize}}" data-key="cutSize" bindinput="onInput" /></view>
+    <view class="field"><text>岩屑密度（g/cm³）</text><input value="{{form.cutDensity}}" data-key="cutDensity" bindinput="onInput" /></view>
+    <view class="field"><text>数据来源</text><input value="{{form.source}}" data-key="source" bindinput="onInput" /></view>
+    <view class="field"><text>备注</text><input value="{{form.notes}}" data-key="notes" bindinput="onInput" /></view>
+  </view>
 
-      <view class="summary-box">{{summary}}</view>
-      <view wx:for="{{warnings}}" wx:key="*this" class="warning">• {{item}}</view>
-      <view wx:if="{{warnings.length === 0}}" class="ok-box">当前输入基础校验已通过；结果仅用于趋势判断，不作为现场处置指令。</view>
-    </view>
-  </block>
+  <view class="actions">
+    <button class="primary" bindtap="calculate">校验并分析</button>
+    <button class="secondary" bindtap="saveSnapshot">保存</button>
+    <button class="secondary" bindtap="restoreSample">样例</button>
+  </view>
 
-  <block wx:if="{{activeTab === '记录'}}">
-    <view class="card">
-      <view class="section-title">关键待核验信息</view>
-      <view class="bullet">• 录井图片中井深约 5293.30 m，排量约 24.1 L/s，转速约 64 rpm，立压约 37.43 MPa，需现场确认仪表值。</view>
-      <view class="bullet">• 现有泥浆数据：密度 1.75 g/cm³，PV 49 mPa·s，YP 12 Pa，六速 124/75/55/34/10/9，测试温度 65℃。</view>
-      <view class="bullet">• 测斜数据当前到 5177 m，而录井图井深约 5293.30 m，未测段需明确深度基准和取值方式。</view>
-      <view class="bullet">• 井身结构需要逐段核对：套管段、裸眼段和侧钻段的尺寸、深度、钻具与井径的对应关系。</view>
-      <view class="bullet">• 当前版本仅完成离线录入与输入校验。工程模型未完成井控/压井/温压流变标定，不能直接用于施工决策。</view>
-    </view>
-  </block>
+  <view class="stats">
+    <view class="stat"><text class="label">名义环空流速</text><text class="value">{{annularVelocity}}</text></view>
+    <view class="stat"><text class="label">岩屑运移指数</text><text class="value">{{transportIndex}}</text></view>
+    <view class="stat"><text class="label">ECD状态</text><text class="value small">{{ecdStatus}}</text></view>
+    <view class="stat"><text class="label">基础校验</text><text class="value small">{{validation}}</text></view>
+  </view>
+
+  <view wx:if="{{warnings.length > 0}}" class="warning-box">
+    <view wx:for="{{warnings}}" wx:key="*this">• {{item}}</view>
+  </view>
+  <view wx:else class="ok-box">基础校验通过，当前结果用于趋势判断而非现场处置决策。</view>
+  <view class="summary-box">{{summary}}</view>
+  <view wx:if="{{savedAt}}" class="saved">已保存：{{savedAt}}</view>
 </view>

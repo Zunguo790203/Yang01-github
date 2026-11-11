@@ -1,20 +1,22 @@
 <view class="page">
   <view class="card">
-    <view class="title">计算结果</view>
-    <view class="block">
+    <view class="title">结果概览</view>
+    <view class="result-item">
       <text class="label">名义环空流速</text>
-      <text class="value">{{annularVelocity || '--'}}</text>
+      <text class="value">{{annularVelocity}}</text>
     </view>
-    <view class="block">
+    <view class="result-item">
+      <text class="label">岩屑运移指数</text>
+      <text class="value">{{transportIndex}}</text>
+    </view>
+    <view class="result-item">
       <text class="label">ECD状态</text>
-      <text class="value">{{ecdStatus || '待计算'}}</text>
+      <text class="value small">{{ecdStatus}}</text>
     </view>
-    <view class="block">
-      <text class="label">井眼清洁/岩屑运移</text>
-      <text class="value">{{cleanStatus || '待计算'}}</text>
+    <view class="result-item">
+      <text class="label">风险状态</text>
+      <text class="value small">{{riskState}}</text>
     </view>
-    <view class="block info">
-      <text>当前页面仅展示本机缓存中的结果；完整工程模型仍需现场校验和审批。</text>
-    </view>
+    <view class="info-box">本页面只展示本机缓存结果；完整工程模型和井控结论必须经现场审核与正式软件验证后再用。</view>
   </view>
 </view>
