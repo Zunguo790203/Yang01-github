@@ -1,6 +1,8 @@
 {
   "pages": [
-    "pages/home/home"
+    "pages/home/home",
+    "pages/result/result",
+    "pages/settings/settings"
   ],
   "window": {
     "navigationBarTitleText": "钻井现场辅助",
@@ -8,6 +10,17 @@
     "navigationBarTextStyle": "white",
     "backgroundColor": "#f2f6fb",
     "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#66768a",
+    "selectedColor": "#174987",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/home/home", "text": "现场", "iconPath": "images/home.png", "selectedIconPath": "images/home-select.png" },
+      { "pagePath": "pages/result/result", "text": "结果", "iconPath": "images/result.png", "selectedIconPath": "images/result-select.png" },
+      { "pagePath": "pages/settings/settings", "text": "设置", "iconPath": "images/setting.png", "selectedIconPath": "images/setting-select.png" }
+    ]
   },
   "style": "v2",
   "sitemapLocation": "sitemap.json"
