@@ -1,0 +1,19 @@
+{
+  "description": "钻井工程现场数据录入与模型验证原型",
+  "packOptions": {
+    "ignore": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "compileHotReLoad": true
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.4.8",
+  "appid": "touristappid",
+  "projectname": "drilling-fluid-assistant",
+  "miniprogramRoot": "./"
+}

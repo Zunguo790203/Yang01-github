@@ -1,0 +1,14 @@
+{
+  "pages": [
+    "pages/home/home"
+  ],
+  "window": {
+    "navigationBarTitleText": "钻井现场辅助",
+    "navigationBarBackgroundColor": "#0d2b4f",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f2f6fb",
+    "backgroundTextStyle": "light"
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
