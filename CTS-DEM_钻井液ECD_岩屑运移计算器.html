@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>钻井液 ECD / 岩屑运移辅助计算器</title>
+  <style>
+    :root {
+      --bg: #f3f7fb;
+      --panel: #ffffff;
+      --soft: #eef3ff;
+      --title: #0d2b4f;
+      --text: #1d2d3d;
+      --muted: #64748b;
+      --green: #0f9d58;
+      --amber: #f59e0b;
+      --red: #dc2626;
+      --blue: #2563eb;
+      --border: #dfe8f3;
+      --shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      max-width: 1200px;
+      margin: 24px auto;
+      padding: 0 16px 40px;
+    }
+    .header {
+      background: linear-gradient(135deg, #0d2b4f, #1d4f91);
+      color: white;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .header h1 { margin: 0 0 8px; font-size: 28px; }
+    .header p { margin: 0; color: rgba(255,255,255,0.8); }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 20px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 18px 20px;
+    }
+    .card h2 {
+      margin: 0 0 14px;
+      color: var(--title);
+      font-size: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(160px, 1fr));
+      gap: 12px 16px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field label {
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .field input, .field select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .field input:focus, .field select:focus {
+      outline: 2px solid rgba(37,99,235,0.12);
+      border-color: var(--blue);
+    }
+    .section-title {
+      font-weight: 700;
+      color: var(--title);
+      margin: 18px 0 10px;
+      font-size: 15px;
+    }
+    .actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 11px 16px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: 0.15s ease;
+    }
+    .primary {
+      background: var(--blue);
+      color: white;
+      box-shadow: 0 8px 18px rgba(37,99,235,0.20);
+    }
+    .secondary {
+      background: var(--soft);
+      color: var(--title);
+      border: 1px solid var(--border);
+    }
+    button:hover { transform: translateY(-1px); }
+    .result-panel {
+      display: grid;
+      gap: 12px;
+    }
+    .stat {
+      background: linear-gradient(180deg, #f8fbff, #eff6ff);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+    }
+    .stat .k {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .stat .v {
+      font-size: 30px;
+      font-weight: 700;
+      color: var(--title);
+      line-height: 1.1;
+    }
+    .warning {
+      color: var(--red);
+      font-weight: 600;
+    }
+    .ok {
+      color: var(--green);
+      font-weight: 600;
+    }
+    .note {
+      border-left: 4px solid var(--blue);
+      background: #f7f9ff;
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <h1>钻井液 ECD / 岩屑运移辅助计算器</h1>
+      <p>基于现场工况快照与简化工程模型，适合现场快速估算，不能替代正式井下压力软件或审核程序。</p>
+    </header>
+
+    <div class="layout">
+      <div class="card">
+        <h2>现场数据录入</h2>
+        <div class="section-title">井身及流体</div>
+        <div class="grid">
+          <div class="field">
+            <label>井深（m）</label>
+            <input id="wellDepth" value="5293.3" />
+          </div>
+          <div class="field">
+            <label>套管下深（m）</label>
+            <input id="casingDepth" value="2490" />
+          </div>
+          <div class="field">
+            <label>套管内径（mm）</label>
+            <input id="casingID" value="220.5" />
+          </div>
+          <div class="field">
+            <label>裸眼井径（mm）</label>
+            <input id="holeID" value="226" />
+          </div>
+          <div class="field">
+            <label>钻杆外径（mm）</label>
+            <input id="pipeOD" value="127" />
+          </div>
+          <div class="field">
+            <label>钻杆内径（mm）</label>
+            <input id="pipeID" value="108.6" />
+          </div>
+          <div class="field">
+            <label>钻井液密度（g/cm³）</label>
+            <input id="mudDensity" value="1.75" />
+          </div>
+          <div class="field">
+            <label>钻井液黏度（s / 漏斗）</label>
+            <input id="funnelVisc" value="82" />
+          </div>
+          <div class="field">
+            <label>塑性黏度 PV（mPa·s）</label>
+            <input id="pv" value="49" />
+          </div>
+          <div class="field">
+            <label>动切力 YP（Pa）</label>
+            <input id="yp" value="12" />
+          </div>
+          <div class="field">
+            <label>初切（Pa）</label>
+            <input id="gel10" value="5.5" />
+          </div>
+          <div class="field">
+            <label>终切（Pa）</label>
+            <input id="gel30" value="12" />
+          </div>
+        </div>
+
+        <div class="section-title">工况与岩屑</div>
+        <div class="grid">
+          <div class="field">
+            <label>排量（L/s）</label>
+            <input id="flowRate" value="24.1" />
+          </div>
+          <div class="field">
+            <label>转速（rpm）</label>
+            <input id="rpm" value="64" />
+          </div>
+          <div class="field">
+            <label>钻速（min/m）</label>
+            <input id="rop" value="1.9" />
+          </div>
+          <div class="field">
+            <label>立压（MPa）</label>
+            <input id="standpipe" value="37.43" />
+          </div>
+          <div class="field">
+            <label>井底循环温度（℃）</label>
+            <input id="tempBottom" value="117" />
+          </div>
+          <div class="field">
+            <label>岩屑粒径（mm）</label>
+            <input id="cutSize" value="10" />
+          </div>
+          <div class="field">
+            <label>岩屑密度（g/cm³）</label>
+            <input id="cutDensity" value="2.65" />
+          </div>
+          <div class="field">
+            <label>切屑与流体密度差</label>
+            <select id="densityMode">
+              <option value="default" selected>默认（2.65 - 1.75）</option>
+              <option value="custom">自定义</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" id="calcBtn">计算</button>
+          <button class="secondary" id="loadSampleBtn">加载现场样例</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>计算结果</h2>
+        <div class="result-panel">
+          <div class="stat">
+            <span class="k">估算井底 ECD</span>
+            <span class="v" id="ecdVal">--</span>
+          </div>
+          <div class="stat">
+            <span class="k">环空流速</span>
+            <span class="v" id="annularVelocity">--</span>
+          </div>
+          <div class="stat">
+            <span class="k">岩屑运移指数</span>
+            <span class="v" id="transportIndex">--</span>
+          </div>
+          <div class="stat">
+            <span class="k">估算井底清洁风险</span>
+            <span class="v" id="cleanRisk">--</span>
+          </div>
+          <div class="note" id="summaryBox">
+            尚未计算，先录入现场参数。
+          </div>
+          <div class="small">
+            说明：本计算器使用简化工程模型，主要用于现场快速估算和趋势判断，不能替代正式 ECD 软件、井下压力软件或现场审查结论。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toNumber(id, fallback = 0) {
+      const val = document.getElementById(id).value;
+      const n = Number(val);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    function calcAnnulusArea(innerDiamMm, outerDiamMm) {
+      const inner = innerDiamMm / 1000;
+      const outer = outerDiamMm / 1000;
+      const area = (Math.PI / 4) * (outer * outer - inner * inner);
+      return area;
+    }
+
+    function calcEcdSimplified(mudDensity, flowRate, annulusArea, depthM, standpipeMPa, pv, yp, tempBottom) {
+      const area = Math.max(annulusArea, 1e-6);
+      const velocity = flowRate / area; // m/s, assuming L/s => m3/s. / area m² => m/s
+      const rhoValue = mudDensity * 1000;
+      const hydraulicLoss = 0.00018 * Math.pow(flowRate, 1.7) * (pv + 0.5 * yp) * depthM / Math.pow(area * 1000, 1.2);
+      const densityEquivalent = hydraulicLoss / (0.00981 * depthM || 1);
+      const tempFactor = 1 + (tempBottom - 65) * 0.00055;
+      const ecdSg = mudDensity + densityEquivalent * tempFactor;
+      const ecdMPa = rhoValue * 9.81 * depthM / 1e6 + standpipeMPa * 0.18 + hydraulicLoss;
+      return {
+        velocity,
+        hydraulicLoss,
+        densityEquivalent,
+        ecdSg,
+        ecdMPa
+      };
+    }
+
+    function calcTransportIndex(flowRate, annularArea, cutSizeMm, cutDensity, mudDensity, rpm, rop, depthM) {
+      const area = Math.max(annulusArea, 1e-6);
+      const velocity = flowRate / area;
+      const densityDelta = Math.max(cutDensity - mudDensity, 0.05);
+      const slipVelocity = 0.063 * Math.sqrt(densityDelta * cutSizeMm);
+      const transportIndex = velocity / (slipVelocity + 0.08 + (rop * 0.02));
+      const riskScore = clamp(1.6 - transportIndex, 0, 1.3);
+      return { velocity, slipVelocity, transportIndex, riskScore };
+    }
+
+    function getRiskText(index) {
+      if (index > 1.3) return {text: '良好', cls: 'ok'};
+      if (index > 0.9) return {text: '中等', cls: 'warning'};
+      return {text: '偏危险', cls: 'warning'};
+    }
+
+    function calculate() {
+      const depthM = toNumber('wellDepth', 5293.3);
+      const casingDepth = toNumber('casingDepth', 2490);
+      const casingIDmm = toNumber('casingID', 220.5);
+      const holeIDmm = toNumber('holeID', 226);
+      const pipeODmm = toNumber('pipeOD', 127);
+      const pipeIDmm = toNumber('pipeID', 108.6);
+      const mudDensity = toNumber('mudDensity', 1.75);
+      const pv = toNumber('pv', 49);
+      const yp = toNumber('yp', 12);
+      const flowRate = toNumber('flowRate', 24.1);
+      const rpm = toNumber('rpm', 64);
+      const rop = toNumber('rop', 1.9);
+      const standpipe = toNumber('standpipe', 37.43);
+      const tempBottom = toNumber('tempBottom', 117);
+      const cutSize = toNumber('cutSize', 10);
+      const cutDensity = toNumber('cutDensity', 2.65);
+
+      const annulusCasing = calcAnnulusArea(pipeODmm, casingIDmm);
+      const annulusOpen = calcAnnulusArea(pipeODmm, holeIDmm);
+      const usedDepth = Math.min(depthM, casingDepth);
+      const activeAnnulus = depthM > casingDepth ? annulusOpen : annulusCasing;
+
+      const ecd = calcEcdSimplified(mudDensity, flowRate, activeAnnulus, depthM, standpipe, pv, yp, tempBottom);
+      const transport = calcTransportIndex(flowRate, activeAnnulus, cutSize, cutDensity, mudDensity, rpm, rop, depthM);
+      const risk = getRiskText(transport.transportIndex);
+
+      const ecdOut = (ecd.ecdSg).toFixed(2) + ' sg';
+      const velocityOut = (ecd.velocity).toFixed(2) + ' m/s';
+      const transportOut = (transport.transportIndex).toFixed(2);
+
+      document.getElementById('ecdVal').textContent = ecdOut;
+      document.getElementById('annularVelocity').textContent = velocityOut;
+      document.getElementById('transportIndex').textContent = transportOut;
+      document.getElementById('cleanRisk').textContent = risk.text;
+      document.getElementById('cleanRisk').className = 'v ' + risk.cls;
+
+      const summary = [
+        '当前井况估算：',
+        '• 井底 ECD 约 ' + ecdOut + '，按简化工程模型估算。',
+        '• 环空流速约 ' + velocityOut + '，对岩屑输送与沉降有明显影响。',
+        '• 岩屑运移指数约 ' + transportOut + '，判断为 ' + risk.text + '。',
+        '• 该结果仅用于现场快速评估，不替代正式井下压力模型和审核结论。'
+      ].join('\n');
+      document.getElementById('summaryBox').innerHTML = summary.replace(/\n/g, '<br>');
+    }
+
+    document.getElementById('calcBtn').addEventListener('click', calculate);
+    document.getElementById('loadSampleBtn').addEventListener('click', () => {
+      document.getElementById('wellDepth').value = '5293.3';
+      document.getElementById('casingDepth').value = '2490';
+      document.getElementById('casingID').value = '220.5';
+      document.getElementById('holeID').value = '226';
+      document.getElementById('pipeOD').value = '127';
+      document.getElementById('pipeID').value = '108.6';
+      document.getElementById('mudDensity').value = '1.75';
+      document.getElementById('funnelVisc').value = '82';
+      document.getElementById('pv').value = '49';
+      document.getElementById('yp').value = '12';
+      document.getElementById('flowRate').value = '24.1';
+      document.getElementById('rpm').value = '64';
+      document.getElementById('rop').value = '1.9';
+      document.getElementById('standpipe').value = '37.43';
+      document.getElementById('tempBottom').value = '117';
+      document.getElementById('cutSize').value = '10';
+      document.getElementById('cutDensity').value = '2.65';
+      calculate();
+    });
+
+    calculate();
+  </script>
+</body>
+</html>
