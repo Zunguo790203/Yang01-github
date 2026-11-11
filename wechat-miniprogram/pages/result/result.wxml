@@ -2,7 +2,7 @@
   <view class="card">
     <view class="title">结果概览</view>
     <view class="result-item">
-      <text class="label">名义环空流速</text>
+      <text class="label">环空流速</text>
       <text class="value">{{annularVelocity}}</text>
     </view>
     <view class="result-item">
@@ -17,6 +17,5 @@
       <text class="label">风险状态</text>
       <text class="value small">{{riskState}}</text>
     </view>
-    <view class="info-box">本页面只展示本机缓存结果；完整工程模型和井控结论必须经现场审核与正式软件验证后再用。</view>
   </view>
 </view>
